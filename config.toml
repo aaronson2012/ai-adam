@@ -20,4 +20,4 @@ path = "data/ai_adam.db"
 # Logging Settings
 [logging]
 # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-level = "INFO"
+level = "DEBUG"
