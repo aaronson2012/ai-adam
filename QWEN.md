@@ -13,6 +13,8 @@ AI-Adam is a Discord bot with the following key features:
 - Support for numerous LLM providers through LiteLLM
 - Server-specific customization with per-server personality settings
 - Memory management with appropriate permissions
+- Automatic command synchronization on startup
+- Background emoji caching to prevent duplicate processing
 
 ## Technology Stack
 
@@ -30,7 +32,8 @@ ai-adam/
 ├── src/
 │   ├── cogs/                 # Discord bot commands and features
 │   │   ├── personality.py    # Personality management commands
-│   │   └── memory.py         # Memory management commands
+│   │   ├── memory.py         # Memory management commands
+│   │   └── reactions.py      # Automatic reaction functionality
 │   ├── database/             # Database management
 │   │   └── manager.py        # SQLite database operations
 │   ├── utils/                # Utility functions
@@ -44,9 +47,14 @@ ai-adam/
 │   │   ├── tech_expert.toml  # Technical expert personality
 │   │   ├── memer.toml        # Meme-focused personality
 │   │   ├── karen.toml        # Karen personality
-│   │   └── tifa_lockhart.toml # Tifa Lockhart personality
+│   │   ├── noughties_memer.toml # 2000s internet culture personality
+│   │   ├── reddit_mod.toml   # Reddit/Discord moderator personality
+│   │   └── tifa_lockhart.toml # Tifa Lockhart character personality
 │   ├── main.py               # Main bot entry point
-├── tests/                    # Unit tests
+├── tests/                    # All tests organized by type
+│   ├── unit/                 # Unit tests for individual components
+│   ├── integration/          # Integration tests for component interactions
+│   ├── e2e/                  # End-to-end tests for complete workflows
 ├── data/                     # Database files
 │   └── ai_adam.db            # SQLite database
 ├── config.example.toml       # Example configuration file
@@ -69,6 +77,7 @@ ai-adam/
 - Loads personality system for customized responses
 - Implements emoji analysis for contextual understanding
 - Automatically syncs commands on startup
+- Manages background emoji caching
 
 ### Database Manager (src/database/manager.py)
 - Uses SQLite with aiosqlite for async database operations
@@ -77,6 +86,7 @@ ai-adam/
 - Provides methods to get and update user memory
 - Caches emoji descriptions to avoid repeated processing across bot restarts
 - Stores server personality settings
+- Stores server-wide memory for community facts
 
 ### Personality System (src/utils/personalities.py)
 - Defines personality traits, communication styles, and behavior patterns
@@ -106,9 +116,15 @@ ai-adam/
 
 #### Memory Commands (src/cogs/memory.py)
 - Implements slash command for memory management
-- `/memory` - Get or clear memory information about a user
-- Requires "Manage Server" permissions to clear memory
-- Shows confirmation dialog before clearing memory
+- `/memory` - Retrieve memory information for users or servers
+- Supports retrieving memory for specific users
+- Shows memory information in formatted embeds
+
+#### Reactions (src/cogs/reactions.py)
+- Automatically reacts to messages using AI analysis
+- Determines when and how to react based on message content
+- Uses personality context for appropriate reactions
+- Avoids spam with intelligent reaction frequency controls
 
 ## Configuration
 
@@ -118,7 +134,7 @@ The bot uses two main configuration files:
 
 Key configuration options:
 - Discord bot token
-- Default AI model (currently set to `gemini/gemini-2.5-flash`)
+- Default AI model (currently set to `gemini/gemini-2.5-flash-lite`)
 - Vision model for emoji analysis (optional)
 - Database path
 - Logging level
@@ -136,6 +152,7 @@ Key configuration options:
 - Run tests with: `pytest`
 - Tests use pytest-asyncio for async testing
 - Database tests use temporary files for isolation
+- Tests are organized into unit, integration, and end-to-end categories
 
 ### Adding New Features
 1. For new commands, add them as cogs in the `src/cogs/` directory
@@ -151,12 +168,15 @@ The bot supports numerous AI provider API keys through environment variables, in
 - And many others (see .env.example for the complete list)
 
 ## Current Status
-The bot is configured to use `gemini/gemini-2.5-flash` as the default AI model. It implements a memory system that learns from user interactions and can adapt its personality based on server preferences. The bot has two main slash commands: `/personality` for setting the bot's personality and `/memory` for viewing or clearing user memory.
+The bot is configured to use `gemini/gemini-2.5-flash-lite` as the default AI model. It implements a memory system that learns from user interactions and can adapt its personality based on server preferences. The bot has three main slash commands: `/personality` for setting the bot's personality, `/memory` for viewing user/server memory, and automatic reactions that enhance conversations with appropriate emojis.
 
 ## Recent Improvements
-- Enhanced emoji handling with better caching and reduced API usage
-- Improved memory management with user memory clearing functionality
+- Enhanced memory command with user parameter to retrieve memory for specific users
+- Improved emoji handling with better caching and reduced API usage
+- Added automatic reaction system that intelligently reacts to messages
 - Better error handling and logging throughout the codebase
-- More comprehensive test coverage
+- More comprehensive test coverage organized by type
 - Automatic command synchronization on bot startup
 - Background emoji caching to prevent duplicate processing
+- Server-wide memory system for community facts
+- Comprehensive integration testing with multiple user scenarios

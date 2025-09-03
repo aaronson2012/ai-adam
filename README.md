@@ -12,6 +12,8 @@ A Discord bot with AI chat capabilities and learning features. AI-Adam is design
 - **Multi-model Support**: Works with numerous LLM providers through LiteLLM
 - **Server-specific Customization**: Each server can set its own personality
 - **Memory Management**: View and clear user memory with appropriate permissions
+- **Automatic Reactions**: AI-powered automatic reactions to enhance conversations
+- **Server-wide Memory**: Stores community facts and inside jokes
 
 ## Project Structure
 
@@ -20,7 +22,8 @@ ai-adam/
 ├── src/
 │   ├── cogs/                 # Discord bot commands and features
 │   │   ├── personality.py    # Personality management commands
-│   │   └── memory.py         # Memory management commands
+│   │   ├── memory.py         # Memory management commands
+│   │   └── reactions.py      # Automatic reaction functionality
 │   ├── database/             # Database management
 │   │   └── manager.py        # SQLite database operations
 │   ├── utils/                # Utility functions
@@ -34,7 +37,9 @@ ai-adam/
 │   │   ├── tech_expert.toml  # Technical expert personality
 │   │   ├── memer.toml        # Meme-focused personality
 │   │   ├── karen.toml        # Karen personality
-│   │   └── tifa_lockhart.toml # Tifa Lockhart personality
+│   │   ├── noughties_memer.toml # 2000s internet culture personality
+│   │   ├── reddit_mod.toml   # Reddit/Discord moderator personality
+│   │   └── tifa_lockhart.toml # Tifa Lockhart character personality
 │   ├── main.py               # Main bot entry point
 ├── tests/                    # All tests organized by type
 │   ├── unit/                 # Unit tests for individual components
@@ -120,7 +125,7 @@ python src/main.py
 ### Slash Commands
 
 - `/personality` - Set the bot's personality (shows autocomplete list of available personalities)
-- `/memory` - Get or clear memory information about a user (requires "Manage Server" permissions)
+- `/memory` - Retrieve memory information for users or servers
 
 ## Personalities
 
@@ -148,13 +153,15 @@ The default personality is designed to be:
 2. **Tech Expert** - Knowledgeable technology expert who explains complex concepts simply
 3. **Memer** - Meme-focused personality with humorous responses
 4. **Karen** - Entitled customer service personality
-5. **Tifa Lockhart** - Character from Final Fantasy VII with caring and determined personality
+5. **The Noughties Memer** - 2000s internet culture with l33t speak and classic memes
+6. **The Reddit and Discord Mod** - Power-hungry moderator personality
+7. **Tifa Lockhart** - Character from Final Fantasy VII with caring and determined personality
 
 ### Adding New Personalities
 
 To add a new personality:
 
-1. Create a new TOML file in `src/personalities/` (copy `template.toml` as a starting point)
+1. Create a new TOML file in `src/personalities/` (copy an existing personality as a starting point)
 2. Define the personality traits, communication style, and behavior patterns
 3. The new personality will automatically be available through the slash commands
 
@@ -250,6 +257,45 @@ Behavior patterns:
 - Help debug code by asking targeted questions
 ```
 
+## Memory System
+
+AI-Adam remembers interactions with users to provide personalized responses over time:
+
+1. **Fact Learning**: The bot learns facts about users from conversations
+2. **Interaction History**: Last 20 interactions are stored for context
+3. **Server Memory**: Server-wide facts and community information
+4. **Memory Management**: Server administrators can view user memory
+5. **Privacy**: Memory is stored locally and can be managed by server admins
+
+### Memory Commands
+
+- `/memory target:user [user:@User]` - View memory information for a specific user (defaults to command user)
+- `/memory target:server` - View server-wide memory information
+
+## Emoji Intelligence
+
+AI-Adam can understand and use server-specific emojis. The bot:
+
+1. Analyzes custom server emojis
+2. Uses vision models to understand what emojis represent (when available)
+3. Incorporates emoji understanding into conversations
+4. Uses emojis liberally to enhance communication
+
+### Emoji Caching
+
+To improve performance and reduce API usage, AI-Adam caches emoji descriptions in the database. When the bot first encounters a custom emoji, it analyzes the emoji using a vision model (if available) and stores the description in the database. On subsequent encounters with the same emoji, the bot retrieves the cached description instead of re-analyzing the emoji, which significantly speeds up response times and reduces API costs.
+
+The bot automatically caches all emojis for all servers it's in when it starts up, and periodically checks for new emojis.
+
+## Automatic Reactions
+
+AI-Adam can automatically react to messages with appropriate emojis:
+
+1. **AI-powered Analysis**: Uses AI to determine when and how to react
+2. **Personality Context**: Reactions are influenced by the server's personality
+3. **Spam Prevention**: Intelligent controls to avoid excessive reactions
+4. **Custom Emoji Support**: Uses server-specific emojis when appropriate
+
 ## Database
 
 AI-Adam uses SQLite for storing user memory and interaction history. The database schema includes:
@@ -269,35 +315,10 @@ AI-Adam uses SQLite for storing user memory and interaction history. The databas
   - `personality_name`: Name of the personality set for this server
   - `created_at`: Timestamp when the personality was set
   - `updated_at`: Timestamp when the personality was last updated
-
-## Memory System
-
-AI-Adam remembers interactions with users to provide personalized responses over time:
-
-1. **Fact Learning**: The bot learns facts about users from conversations
-2. **Interaction History**: Last 20 interactions are stored for context
-3. **Memory Management**: Server administrators can view and clear user memory
-4. **Privacy**: Memory is stored locally and can be cleared at any time
-
-### Memory Commands
-
-- `/memory <user>` - View memory information for a specific user
-- `/memory <user> clear:true` - Clear memory for a specific user (requires "Manage Server" permissions)
-
-## Emoji Intelligence
-
-AI-Adam can understand and use server-specific emojis. The bot:
-
-1. Analyzes custom server emojis
-2. Uses vision models to understand what emojis represent (when available)
-3. Incorporates emoji understanding into conversations
-4. Uses emojis liberally to enhance communication
-
-### Emoji Caching
-
-To improve performance and reduce API usage, AI-Adam caches emoji descriptions in the database. When the bot first encounters a custom emoji, it analyzes the emoji using a vision model (if available) and stores the description in the database. On subsequent encounters with the same emoji, the bot retrieves the cached description instead of re-analyzing the emoji, which significantly speeds up response times and reduces API costs.
-
-The bot automatically caches all emojis for all servers it's in when it starts up, and periodically checks for new emojis.
+- `server_memory` table with:
+  - `guild_id`: Discord server ID
+  - `known_facts`: JSON string of server-wide facts
+  - `last_updated`: Timestamp of last update
 
 ## Supported AI Providers
 
