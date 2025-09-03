@@ -8,7 +8,7 @@ import litellm # For AI interactions
 # Import database manager
 from src.database.manager import DatabaseManager
 # Import personality system
-from src.utils.personalities import get_personality_prompt
+from src.utils.personalities import get_personality_prompt, get_available_personalities, get_personality
 # Import emoji analyzer
 from src.utils.emoji_analyzer import create_enhanced_emoji_prompt
 
@@ -146,6 +146,23 @@ intents.emojis = True # Needed to access server emojis
 # Initialize the bot with slash command support
 bot = discord.Bot(intents=intents)
 
+# Force sync commands
+@bot.event
+async def on_connect():
+    logger.info("Bot connected to Discord gateway")
+    if bot.auto_sync_commands:
+        logger.info("Syncing commands...")
+        await bot.sync_commands()
+        logger.info("Commands synced successfully")
+
+@bot.slash_command(name="sync", description="Manually sync slash commands (admin only)")
+@commands.has_permissions(administrator=True)
+async def sync_commands(ctx: discord.ApplicationContext):
+    """Manually sync slash commands"""
+    await ctx.defer(ephemeral=True)
+    await bot.sync_commands()
+    await ctx.respond("Commands synced successfully!", ephemeral=True)
+
 # Store the current personality for each server
 server_personalities = {}
 
@@ -166,10 +183,31 @@ async def on_ready():
     
     # Load cogs
     try:
-        bot.load_extension("src.cogs.personality")
-        logger.info("Personality cog loaded successfully")
+        # Import and register the personality commands
+        import src.cogs.personality
+        src.cogs.personality.setup(bot)
+        logger.info("Personality commands registered successfully")
+        
+        # Debug information about registered commands
+        logger.info(f"Registered slash commands: {[cmd.name for cmd in bot.pending_application_commands]}")
+        logger.info(f"Total number of registered commands: {len(bot.pending_application_commands)}")
+        
+        # Print details of each command
+        for cmd in bot.pending_application_commands:
+            logger.info(f"Command: {cmd.name}, Description: {cmd.description}")
+            
+        # Force sync commands after registration
+        logger.info("Syncing commands after registration...")
+        await bot.sync_commands()
+        logger.info("Commands synced successfully after registration")
+        
+        # Additional debug info
+        logger.info(f"Bot ID: {bot.user.id}")
+        logger.info(f"Bot name: {bot.user.name}")
     except Exception as e:
-        logger.error(f"Failed to load personality cog: {e}")
+        logger.error(f"Failed to register personality commands: {e}")
+        import traceback
+        traceback.print_exc()
 
 @bot.event
 async def on_message(message):
@@ -203,7 +241,7 @@ async def on_message(message):
         personality_prompt = get_personality_prompt(personality_name)
         
         # Get enhanced emoji prompt with visual descriptions
-        emoji_prompt = create_enhanced_emoji_prompt(message.guild)
+        emoji_prompt = await create_enhanced_emoji_prompt(message.guild, db_manager)
         
         # Prepare prompt with personality, memory, and emoji information
         full_prompt = f"{personality_prompt}\n\nUser Memory: {user_memory}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI Adam:"

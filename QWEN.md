@@ -63,6 +63,7 @@ ai-adam/
 - Stores user memory with known facts and interaction history
 - Maintains last 20 interactions per user for context
 - Provides methods to get and update user memory
+- Caches emoji descriptions to avoid repeated processing across bot restarts
 
 ### Personality System (src/utils/personalities.py)
 - Defines personality traits, communication styles, and behavior patterns
@@ -73,14 +74,12 @@ ai-adam/
 ### Emoji Intelligence (src/utils/emoji_analyzer.py)
 - Analyzes custom server emojis using vision models
 - Creates enhanced prompts with emoji descriptions for better AI understanding
-- Caches emoji descriptions to avoid repeated processing
+- Caches emoji descriptions in the database to avoid repeated processing across bot restarts
 - Falls back to simple text descriptions for non-vision models
 
 ### Slash Commands (src/cogs/personality.py)
-- Implements slash commands for personality management
-- `/personality_list` - List all available personalities
-- `/personality_current` - Show the current personality
-- `/personality_set` - Set the bot's personality (requires Manage Server permission)
+- Implements a single slash command for personality management
+- `/personality` - Set the bot's personality (shows autocomplete list of available personalities)
 
 ## Configuration
 

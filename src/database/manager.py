@@ -16,6 +16,7 @@ class DatabaseManager:
     async def init_db(self):
         """Initialize the database and create tables if they don't exist."""
         async with aiosqlite.connect(self.db_path) as db:
+            # Create user_memory table
             await db.execute('''
                 CREATE TABLE IF NOT EXISTS user_memory (
                     user_id TEXT PRIMARY KEY,
@@ -24,6 +25,17 @@ class DatabaseManager:
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # Create emoji_descriptions table for caching emoji analysis results
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS emoji_descriptions (
+                    emoji_key TEXT PRIMARY KEY, -- Format: guild_id:emoji_name
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
             await db.commit()
             logger.info("Database initialized.")
 
@@ -70,3 +82,29 @@ class DatabaseManager:
             ''', (user_id, updated_facts, updated_history))
             await db.commit()
             logger.debug(f"Updated memory for user {user_id}")
+
+    async def get_emoji_description(self, guild_id: int, emoji_name: str) -> str:
+        """Retrieve cached description for an emoji."""
+        emoji_key = f"{guild_id}:{emoji_name}"
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT description FROM emoji_descriptions WHERE emoji_key = ?", (emoji_key,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return row[0]
+                else:
+                    return None
+
+    async def save_emoji_description(self, guild_id: int, emoji_name: str, description: str):
+        """Save emoji description to cache."""
+        emoji_key = f"{guild_id}:{emoji_name}"
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''
+                INSERT OR REPLACE INTO emoji_descriptions (emoji_key, description, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''', (emoji_key, description))
+            await db.commit()
+            logger.debug(f"Saved description for emoji {emoji_key}")

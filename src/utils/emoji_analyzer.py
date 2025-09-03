@@ -10,10 +10,10 @@ import requests
 from io import BytesIO
 import tomllib
 
-logger = logging.getLogger(__name__)
+# Import database manager
+from src.database.manager import DatabaseManager
 
-# Cache for emoji descriptions to avoid repeated processing
-emoji_cache = {}
+logger = logging.getLogger(__name__)
 
 def get_config():
     """Get the configuration from config.toml"""
@@ -74,14 +74,16 @@ def is_vision_capable_model(model: str) -> bool:
     model_lower = model.lower()
     return any(keyword in model_lower for keyword in vision_keywords)
 
-def get_custom_emoji_description(emoji: discord.Emoji) -> Optional[str]:
+async def get_custom_emoji_description(emoji: discord.Emoji, db_manager: DatabaseManager) -> Optional[str]:
     """
     Get a description of a custom server emoji using a multimodal model.
+    Uses database caching to avoid repeated processing.
     """
-    # Check cache first
-    emoji_key = f"{emoji.guild.id}:{emoji.name}"
-    if emoji_key in emoji_cache:
-        return emoji_cache[emoji_key]
+    # Check database cache first
+    cached_description = await db_manager.get_emoji_description(emoji.guild.id, emoji.name)
+    if cached_description:
+        logger.debug(f"Using cached description for emoji {emoji.name}")
+        return cached_description
     
     # Get the vision model from config
     model = get_vision_model()
@@ -90,7 +92,7 @@ def get_custom_emoji_description(emoji: discord.Emoji) -> Optional[str]:
     if not is_vision_capable_model(model):
         # For non-vision models, return a simple text description
         description = f"Custom server emoji: {emoji.name}"
-        emoji_cache[emoji_key] = description
+        await db_manager.save_emoji_description(emoji.guild.id, emoji.name, description)
         return description
     
     # For vision models, try to get actual visual description
@@ -100,7 +102,7 @@ def get_custom_emoji_description(emoji: discord.Emoji) -> Optional[str]:
         if not image_bytes:
             # Fallback to text description
             description = f"Custom server emoji: {emoji.name}"
-            emoji_cache[emoji_key] = description
+            await db_manager.save_emoji_description(emoji.guild.id, emoji.name, description)
             return description
         
         # Encode image
@@ -129,17 +131,17 @@ def get_custom_emoji_description(emoji: discord.Emoji) -> Optional[str]:
         )
         
         description = response.choices[0].message.content
-        emoji_cache[emoji_key] = description
+        await db_manager.save_emoji_description(emoji.guild.id, emoji.name, description)
         return description
         
     except Exception as e:
         logger.warning(f"Could not get visual description for emoji {emoji.name}: {e}")
         # Fallback to simple text description
         description = f"Custom server emoji: {emoji.name}"
-        emoji_cache[emoji_key] = description
+        await db_manager.save_emoji_description(emoji.guild.id, emoji.name, description)
         return description
 
-def analyze_server_emojis(guild: discord.Guild) -> Dict[str, str]:
+async def analyze_server_emojis(guild: discord.Guild, db_manager: DatabaseManager) -> Dict[str, str]:
     """
     Analyze all custom emojis in a server and return descriptions.
     """
@@ -154,7 +156,7 @@ def analyze_server_emojis(guild: discord.Guild) -> Dict[str, str]:
         
         # Get descriptions for each emoji
         for emoji in emojis:
-            description = get_custom_emoji_description(emoji)
+            description = await get_custom_emoji_description(emoji, db_manager)
             if description:
                 emoji_descriptions[str(emoji)] = description
     except Exception as e:
@@ -162,11 +164,11 @@ def analyze_server_emojis(guild: discord.Guild) -> Dict[str, str]:
     
     return emoji_descriptions
 
-def create_enhanced_emoji_prompt(guild: discord.Guild) -> str:
+async def create_enhanced_emoji_prompt(guild: discord.Guild, db_manager: DatabaseManager) -> str:
     """
     Create an enhanced emoji prompt with descriptions for better AI understanding.
     """
-    emoji_descriptions = analyze_server_emojis(guild)
+    emoji_descriptions = await analyze_server_emojis(guild, db_manager)
     
     if not emoji_descriptions:
         # Fall back to the simple emoji prompt

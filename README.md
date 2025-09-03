@@ -81,6 +81,14 @@ ai-adam/
    - Add your `DISCORD_TOKEN`
    - Add your AI provider API keys (OpenAI, Anthropic, etc.)
 
+### Bot Invitation
+
+When inviting the bot to your server, make sure to include both the `bot` and `applications.commands` scopes:
+- `bot` scope: Allows the bot to join your server
+- `applications.commands` scope: Required for slash commands to work
+
+You can generate an invite link with the proper scopes using Discord's OAuth2 URL Generator in the Developer Portal.
+
 ### Running the Bot
 
 ```bash
@@ -97,9 +105,7 @@ python src/main.py
 
 ### Slash Commands
 
-- `/personality_list` - List all available personalities
-- `/personality_current` - Show the current personality
-- `/personality_set <name>` - Set the bot's personality (requires Manage Server permission)
+- `/personality` - Set the bot's personality (shows autocomplete list of available personalities)
 
 ## Personalities
 
@@ -139,6 +145,10 @@ AI-Adam can understand and use server-specific emojis. The bot:
 2. Uses vision models to understand what emojis represent (when available)
 3. Incorporates emoji understanding into conversations
 4. Uses emojis naturally in responses (1-2 per message maximum)
+
+### Emoji Caching
+
+To improve performance and reduce API usage, AI-Adam caches emoji descriptions in the database. When the bot first encounters a custom emoji, it analyzes the emoji using a vision model (if available) and stores the description in the database. On subsequent encounters with the same emoji, the bot retrieves the cached description instead of re-analyzing the emoji, which significantly speeds up response times and reduces API costs.
 
 ## Supported AI Providers
 

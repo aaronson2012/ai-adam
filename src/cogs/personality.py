@@ -2,6 +2,7 @@
 
 import discord
 from discord.ext import commands
+import logging
 from src.utils.personalities import get_available_personalities, get_personality
 
 # Store the current personality for each server
@@ -16,40 +17,29 @@ def set_server_personality(guild_id, personality):
     server_personalities[guild_id] = personality
 
 def setup(bot):
-    @bot.slash_command(name="personality_list", description="List available personalities")
-    async def personality_list(ctx: discord.ApplicationContext):
-        """List all available personalities."""
+    logger = logging.getLogger(__name__)
+    logger.info("Setting up personality commands")
+    
+    # Define autocomplete function for personality names
+    async def personality_autocomplete(ctx: discord.AutocompleteContext):
         personalities = get_available_personalities()
-        personality_list = "\n".join([f"- {name}: {get_personality(name)['description']}" for name in personalities])
+        logger.info(f"Autocomplete requested with value: {ctx.value}")
+        result = [name for name in personalities if ctx.value.lower() in name.lower()][:25]
+        logger.info(f"Autocomplete returning: {result}")
+        return result
+    
+    @bot.slash_command(name="personality", description="Set the bot's personality")
+    async def personality(ctx: discord.ApplicationContext,
+                         name: discord.Option(str, "Personality name", 
+                                            autocomplete=personality_autocomplete)):
+        """Set the bot's personality"""
+        logger.info(f"Personality command called with name: {name}")
         
-        embed = discord.Embed(
-            title="Available Personalities",
-            description=personality_list,
-            color=discord.Color.blue()
-        )
+        # Check if the user has permission to manage the guild
+        if not ctx.author.guild_permissions.manage_guild:
+            await ctx.respond("You need 'Manage Server' permissions to change the bot's personality.", ephemeral=True)
+            return
         
-        await ctx.respond(embed=embed, ephemeral=True)
-
-    @bot.slash_command(name="personality_current", description="Show the current personality")
-    async def personality_current(ctx: discord.ApplicationContext):
-        """Show the current personality for this server."""
-        current = get_server_personality(ctx.guild.id if ctx.guild else "default")
-        personality_data = get_personality(current)
-        
-        embed = discord.Embed(
-            title="Current Personality",
-            description=f"**{personality_data['name']}**\n{personality_data['description']}",
-            color=discord.Color.green()
-        )
-        
-        await ctx.respond(embed=embed, ephemeral=True)
-
-    @bot.slash_command(name="personality_set", description="Set the bot's personality")
-    @commands.has_permissions(manage_guild=True)
-    async def personality_set(ctx: discord.ApplicationContext, 
-                            name: discord.Option(str, "The personality to set", 
-                                               choices=get_available_personalities())):
-        """Set the bot's personality for this server."""
         # Check if the personality exists
         try:
             personality_data = get_personality(name)
@@ -67,3 +57,6 @@ def setup(bot):
         )
         
         await ctx.respond(embed=embed)
+    
+    # Remove the test command as we've identified the issue
+    logger.info("Personality commands setup completed")
