@@ -36,7 +36,10 @@ ai-adam/
 │   │   ├── karen.toml        # Karen personality
 │   │   └── tifa_lockhart.toml # Tifa Lockhart personality
 │   ├── main.py               # Main bot entry point
-├── tests/                    # Unit tests
+├── tests/                    # All tests organized by type
+│   ├── unit/                 # Unit tests for individual components
+│   ├── integration/          # Integration tests for component interactions
+│   ├── e2e/                  # End-to-end tests for complete workflows
 ├── data/                     # Database files
 │   └── ai_adam.db            # SQLite database
 ├── config.example.toml       # Example configuration file
@@ -315,7 +318,17 @@ Through LiteLLM, AI-Adam supports numerous AI providers:
 ### Running Tests
 
 ```bash
+# Run all tests
 pytest
+
+# Run unit tests only
+pytest tests/unit/
+
+# Run integration tests only
+pytest tests/integration/
+
+# Run end-to-end tests only
+pytest tests/e2e/
 ```
 
 ### Extending Functionality
