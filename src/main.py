@@ -436,7 +436,7 @@ async def on_message(message):
     
     # Important: Process commands/cogs after handling the message
     # This allows other cogs like reactions to process the message as well
-    await bot.process_application_commands(message)
+    await bot.process_commands(message)
 
 # --- Run the Bot ---
 if __name__ == "__main__":
