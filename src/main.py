@@ -199,6 +199,11 @@ try:
     src.cogs.memory.setup(bot)
     logger.info("Memory commands registered successfully")
     
+    # Import and register the reactions cog
+    import src.cogs.reactions
+    src.cogs.reactions.setup(bot)
+    logger.info("Reactions cog registered successfully")
+    
     # Debug information about registered commands
     logger.info(f"Registered slash commands: {[cmd.name for cmd in bot.pending_application_commands]}")
     logger.info(f"Total number of registered commands: {len(bot.pending_application_commands)}")
