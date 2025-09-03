@@ -1,0 +1,23 @@
+# AI-Adam Configuration
+
+# Discord Bot Settings
+[discord]
+# Bot Token (loaded from .env, but can be overridden here if needed)
+# token = "YOUR_BOT_TOKEN_HERE"
+
+# AI Settings
+[ai]
+# Default model to use (e.g., 'openai/gpt-4', 'anthropic/claude-3-opus', 'ollama/llama3')
+default_model = "openai/gpt-4"
+# Vision model to use for image/emoji analysis (optional, falls back to default_model if not specified)
+# vision_model = "openai/gpt-4-vision-preview"
+
+# Database Settings
+[database]
+# Path to the SQLite database file
+path = "data/ai_adam.db"
+
+# Logging Settings
+[logging]
+# Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+level = "INFO"

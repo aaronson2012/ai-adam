@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "ai-adam"
+version = "0.1.0"
+description = "A Discord bot with AI chat capabilities and learning features."
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+py-cord = "2.6.1"
+litellm = "1.74.15"
+python-dotenv = "1.0.1"
+aiosqlite = "0.20.0"
+requests = "2.32.3"
+pytest = "8.3.2"
+pytest-asyncio = "0.23.7"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

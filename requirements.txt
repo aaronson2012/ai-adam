@@ -1,0 +1,7 @@
+py-cord==2.6.1
+litellm==1.74.15
+python-dotenv==1.0.1
+aiosqlite==0.20.0
+requests==2.32.3
+pytest==8.3.2
+pytest-asyncio==0.23.7
