@@ -8,6 +8,7 @@ import random
 from typing import Dict, List, Set
 import json
 import litellm
+from collections import deque
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,9 @@ class ReactionCog(commands.Cog):
         self.db_manager = bot.db_manager
         # Track recently reacted messages to avoid spam
         self.recently_reacted: Dict[int, Set[int]] = {}  # guild_id -> set of message IDs
-        self.reaction_cooldown = 300  # 5 minutes cooldown per guild
+        self.message_counters: Dict[int, int] = {}  # guild_id -> message count
+        self.messages_since_last_reaction: Dict[int, int] = {}  # guild_id -> count since last reaction
         self.max_recent_messages = 50  # Track last 50 messages per guild
-        self.reaction_probability = 0.3  # Base 30% chance to consider reacting
         
     async def get_recently_reacted(self, guild_id: int) -> Set[int]:
         """Get recently reacted message IDs for a guild."""
@@ -54,6 +55,29 @@ class ReactionCog(commands.Cog):
                 recent_list = list(self.recently_reacted[guild_id])
                 # Keep the most recent entries (this is a simplification)
                 self.recently_reacted[guild_id] = set(recent_list[-self.max_recent_messages:])
+                
+    async def increment_message_counter(self, guild_id: int) -> int:
+        """Increment and return the message counter for a guild."""
+        if guild_id not in self.message_counters:
+            self.message_counters[guild_id] = 0
+            
+        self.message_counters[guild_id] += 1
+        return self.message_counters[guild_id]
+        
+    async def get_messages_since_last_reaction(self, guild_id: int) -> int:
+        """Get the number of messages since the last reaction."""
+        return self.messages_since_last_reaction.get(guild_id, 0)
+        
+    async def reset_messages_since_last_reaction(self, guild_id: int):
+        """Reset the counter after a reaction."""
+        self.messages_since_last_reaction[guild_id] = 0
+        
+    async def increment_messages_since_last_reaction(self, guild_id: int) -> int:
+        """Increment the counter of messages since last reaction."""
+        if guild_id not in self.messages_since_last_reaction:
+            self.messages_since_last_reaction[guild_id] = 0
+        self.messages_since_last_reaction[guild_id] += 1
+        return self.messages_since_last_reaction[guild_id]
                 
     async def get_recent_reactions_in_channel(self, channel: discord.TextChannel, limit: int = 10) -> List[dict]:
         """Get recent reactions in the channel to avoid spam."""
@@ -113,41 +137,45 @@ class ReactionCog(commands.Cog):
         """Determine if the bot should react to a message using AI analysis."""
         # Don't react to bot messages (including ourselves)
         if message.author.bot:
+            # Increment counter but don't react
+            await self.increment_messages_since_last_reaction(message.guild.id)
             return False
             
         # Don't react in DMs
         if not message.guild:
+            # Increment counter but don't react
+            await self.increment_messages_since_last_reaction(message.guild.id)
             return False
             
         # Don't react if we've already reacted recently to this message
         if await self.is_recently_reacted(message.guild.id, message.id):
+            # Increment counter but don't react
+            await self.increment_messages_since_last_reaction(message.guild.id)
             return False
             
         # Don't react if the message is too short or uninteresting
         content = message.content.strip().lower()
         if len(content) < 3:
+            # Increment counter but don't react
+            await self.increment_messages_since_last_reaction(message.guild.id)
             return False
             
         # Skip common short responses
         if content in ['yes', 'no', 'yeah', 'yep', 'nope', 'ok', 'okay', 'k', 'thanks', 'thx']:
+            # Increment counter but don't react
+            await self.increment_messages_since_last_reaction(message.guild.id)
             return False
             
         # Skip messages that are just mentions or links
         if len(content.split()) < 2 and (content.startswith('<@') or content.startswith('http')):
+            # Increment counter but don't react
+            await self.increment_messages_since_last_reaction(message.guild.id)
             return False
             
-        # Apply base probability filter to avoid reacting to everything
-        if random.random() > self.reaction_probability:
-            return False
-            
-        # Check recent reactions in channel to avoid spam
-        try:
-            recent_reactions = await self.get_recent_reactions_in_channel(message.channel, limit=5)
-            if len(recent_reactions) >= 3:  # If we've reacted to 3 of the last 5 messages, don't react
-                return False
-        except Exception as e:
-            logger.warning(f"Could not check recent reactions: {e}")
-            
+        # Increment message counter for this guild
+        message_count = await self.increment_message_counter(message.guild.id)
+        messages_since_last = await self.increment_messages_since_last_reaction(message.guild.id)
+        
         # Get server personality for context
         try:
             guild_id = str(message.guild.id)
@@ -161,20 +189,27 @@ You are an AI assistant that decides whether to react to Discord messages with e
 Your response should be ONLY a JSON object with this format:
 {{
     "should_react": true/false,
+    "interest_level": "low/medium/high/very_high",
     "reason": "brief explanation"
 }}
+
+Interest levels:
+- low: Not particularly interesting
+- medium: Somewhat interesting
+- high: Quite interesting
+- very_high: Extremely interesting, thought-provoking, or emotionally significant
 
 Consider these factors:
 - Is the message interesting, funny, thought-provoking, or emotionally significant?
 - Does it warrant a reaction?
 - Would a reaction enhance the conversation?
 - Should avoid reacting to short, common responses like "yes", "no", "yeah"
-- Should avoid reacting too frequently to prevent spam
 - Consider the recent conversation context
 
 Message to analyze: "{message.content}"
 
 Context: {await self.get_relevant_context(message)}
+Messages since last reaction: {messages_since_last}
 
 Personality: {personality_name}
 
@@ -186,7 +221,7 @@ Should you react to this message? Respond ONLY with the JSON format specified ab
                 model="gemini/gemini-2.5-flash-lite",  # Using the same model as the bot
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=150
+                max_tokens=200
             )
             
             content = response['choices'][0]['message']['content'].strip()
@@ -200,12 +235,43 @@ Should you react to this message? Respond ONLY with the JSON format specified ab
                 content = content[:-3]
                 
             result = json.loads(content)
-            return result.get("should_react", False)
+            should_react = result.get("should_react", False)
+            interest_level = result.get("interest_level", "low")
+            
+            # Additional logic based on interest level and message frequency
+            if interest_level == "very_high":
+                # Always react to very interesting content
+                return True
+            elif interest_level == "high":
+                # React to high interest content more frequently
+                # But still consider the message count to avoid spam
+                if messages_since_last >= 3:  # At least 3 messages since last reaction
+                    return should_react
+                elif messages_since_last >= 2:  # At least 2 messages since last reaction
+                    # 70% chance to react to high interest content
+                    return should_react and random.random() < 0.7
+            elif interest_level == "medium":
+                # React to medium interest content less frequently
+                if messages_since_last >= 5:  # At least 5 messages since last reaction
+                    return should_react
+                elif messages_since_last >= 3:  # At least 3 messages since last reaction
+                    # 40% chance to react to medium interest content
+                    return should_react and random.random() < 0.4
+            elif interest_level == "low":
+                # Only react to low interest content very infrequently
+                if messages_since_last >= 10:  # At least 10 messages since last reaction
+                    # 20% chance to react to low interest content
+                    return should_react and random.random() < 0.2
+                    
+            # Default: Don't react if none of the above conditions are met
+            return False
             
         except Exception as e:
             logger.error(f"Error determining if should react: {e}")
-            # Default to 5% chance if AI analysis fails
-            return random.random() < 0.05
+            # Conservative approach: only react if it's been a while
+            if messages_since_last >= 8:
+                return random.random() < 0.1  # 10% chance if it's been a while
+            return False
             
     async def get_appropriate_reaction_emojis(self, message: discord.Message) -> List[str]:
         """Get appropriate emojis to react with using AI analysis."""
@@ -313,6 +379,9 @@ OR for custom emojis:
                     
                 # Mark this message as recently reacted to
                 await self.add_recently_reacted(message.guild.id, message.id)
+                
+                # Reset the counter since we just reacted
+                await self.reset_messages_since_last_reaction(message.guild.id)
                 
                 # Clean up old reactions periodically
                 await self.clean_old_reactions(message.guild.id)
