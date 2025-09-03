@@ -30,9 +30,9 @@ def test_get_server_emojis():
     
     # Test with mock guild that has emojis
     mock_emoji1 = Mock()
-    mock_emoji1.__str__ = Mock(return_value=":test1:")
+    mock_emoji1.name = "test1"
     mock_emoji2 = Mock()
-    mock_emoji2.__str__ = Mock(return_value=":test2:")
+    mock_emoji2.name = "test2"
     
     mock_guild.emojis = [mock_emoji1, mock_emoji2]
     result = get_server_emojis(mock_guild)
@@ -53,11 +53,11 @@ def test_get_random_emojis():
     
     # Test with mock guild that has emojis
     mock_emoji1 = Mock()
-    mock_emoji1.__str__ = Mock(return_value=":test1:")
+    mock_emoji1.name = "test1"
     mock_emoji2 = Mock()
-    mock_emoji2.__str__ = Mock(return_value=":test2:")
+    mock_emoji2.name = "test2"
     mock_emoji3 = Mock()
-    mock_emoji3.__str__ = Mock(return_value=":test3:")
+    mock_emoji3.name = "test3"
     
     mock_guild.emojis = [mock_emoji1, mock_emoji2, mock_emoji3]
     result = get_random_emojis(mock_guild, 2)
@@ -80,9 +80,9 @@ def test_create_emoji_prompt():
     
     # Test with mock guild that has emojis
     mock_emoji1 = Mock()
-    mock_emoji1.__str__ = Mock(return_value=":test1:")
+    mock_emoji1.name = "test1"
     mock_emoji2 = Mock()
-    mock_emoji2.__str__ = Mock(return_value=":test2:")
+    mock_emoji2.name = "test2"
     
     mock_guild.emojis = [mock_emoji1, mock_emoji2]
     result = create_emoji_prompt(mock_guild)

@@ -179,7 +179,12 @@ async def create_enhanced_emoji_prompt(guild: discord.Guild, db_manager: Databas
     prompt_lines = ["\n\nAvailable server emojis with descriptions:"]
     
     for emoji, description in emoji_descriptions.items():
-        prompt_lines.append(f"- {emoji}: {description}")
+        # Use :emoji_name: format instead of <:emoji_name:emoji_id:> format
+        if hasattr(emoji, 'name'):
+            emoji_name = f":{emoji.name}:"
+        else:
+            emoji_name = str(emoji)
+        prompt_lines.append(f"- {emoji_name}: {description}")
     
     prompt_lines.append("\nPlease prioritize using these server emojis liberally and frequently to enhance communication and add personality to your responses.")
     prompt_lines.append("Use multiple emojis in a single message when appropriate to express emotions or reactions.")

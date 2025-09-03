@@ -10,8 +10,9 @@ def get_server_emojis(guild):
     
     # Handle mock objects in tests
     try:
-        # Return a list of emoji strings that can be used in messages
-        return [str(emoji) for emoji in guild.emojis]
+        # Return a list of emoji name strings that can be used in messages
+        # Use :emoji_name: format instead of <:emoji_name:emoji_id:> format
+        return [f":{emoji.name}:" for emoji in guild.emojis]
     except (TypeError, AttributeError):
         # If guild.emojis is not iterable (e.g., in tests), return empty list
         return []

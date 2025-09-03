@@ -30,7 +30,7 @@ def setup(bot):
             # Confirm with the user before clearing memory
             confirm_view = ConfirmClearView(ctx.author, user, db_manager)
             await ctx.respond(f"Are you sure you want to clear all memory for {user.name}? This action cannot be undone.", 
-                              view=confirm_view, ephemeral=True)
+                              view=confirm_view, ephemeral=False)
             return
         
         # Get user memory from database
@@ -124,11 +124,11 @@ class ConfirmClearView(discord.ui.View):
         try:
             user_id = str(self.target_user.id)
             await self.db_manager.clear_user_memory(user_id)
-            await interaction.response.send_message(f"Successfully cleared memory for {self.target_user.name}.", ephemeral=True)
+            await interaction.response.send_message(f"Successfully cleared memory for {self.target_user.name}.", ephemeral=False)
         except Exception as e:
             logger = logging.getLogger(__name__)
             logger.error(f"Error clearing memory for user {user_id}: {e}")
-            await interaction.response.send_message("Error clearing user memory.", ephemeral=True)
+            await interaction.response.send_message("Error clearing user memory", ephemeral=False)
         
         # Disable the buttons after use
         self.stop()
@@ -143,7 +143,7 @@ class ConfirmClearView(discord.ui.View):
             await interaction.response.send_message("You cannot cancel this action.", ephemeral=True)
             return
             
-        await interaction.response.send_message("Memory clear operation cancelled.", ephemeral=True)
+        await interaction.response.send_message("Memory clear operation cancelled.", ephemeral=False)
         
         # Disable the buttons after use
         self.stop()

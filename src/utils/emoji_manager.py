@@ -14,6 +14,7 @@ class EmojiManager:
         self.db_manager = db_manager
         self.cached_emojis: Dict[int, Set[str]] = {}  # guild_id -> set of emoji names
         self.background_task = None
+        self.is_caching = False  # Flag to indicate if caching is in progress
         
     async def start_background_caching(self, bot):
         """
@@ -29,16 +30,20 @@ class EmojiManager:
         while True:
             try:
                 # Cache emojis for all guilds
+                self.is_caching = True
                 for guild in bot.guilds:
                     await self._cache_guild_emojis(guild)
+                self.is_caching = False
                 
                 # Wait for a period before next check (e.g., 30 minutes)
                 await asyncio.sleep(30 * 60)  # 30 minutes
             except asyncio.CancelledError:
                 logger.info("Background emoji caching task cancelled")
+                self.is_caching = False
                 break
             except Exception as e:
                 logger.error(f"Error in background emoji caching: {e}")
+                self.is_caching = False
                 # Wait before retrying
                 await asyncio.sleep(60)  # 1 minute
                 
@@ -47,6 +52,12 @@ class EmojiManager:
         Check for emoji changes in a specific guild (can be called on demand).
         """
         await self._cache_guild_emojis(guild)
+                
+    def is_caching_in_progress(self) -> bool:
+        """
+        Check if emoji caching is currently in progress.
+        """
+        return self.is_caching
                 
     async def _cache_guild_emojis(self, guild: discord.Guild):
         """
@@ -116,11 +127,14 @@ class EmojiManager:
         """
         logger.info("Starting emoji caching on startup")
         try:
+            self.is_caching = True
             for guild in bot.guilds:
                 await self._cache_guild_emojis(guild)
+            self.is_caching = False
             logger.info("Finished emoji caching on startup")
         except Exception as e:
             logger.error(f"Error during startup emoji caching: {e}")
+            self.is_caching = False
             
     def cancel_background_task(self):
         """

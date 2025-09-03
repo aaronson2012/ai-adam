@@ -273,9 +273,18 @@ async def on_message(message):
         personality_prompt = get_personality_prompt(personality_name)
         logger.debug(f"Personality prompt: {personality_prompt[:200]}...")
         
-        # Get enhanced emoji prompt with visual descriptions
-        # Note: This now uses cached data, so it won't block
-        emoji_prompt = await create_enhanced_emoji_prompt(message.guild, db_manager)
+        # Check if emoji caching is in progress
+        global emoji_manager
+        if emoji_manager.is_caching_in_progress():
+            # If caching is in progress, send a waiting message
+            await message.channel.send("Emojis are currently being cached and processed. Please wait a moment before I can fully utilize them in my responses!")
+            # Still create a simple emoji prompt without descriptions for now
+            from src.utils.emoji_helper import create_emoji_prompt
+            emoji_prompt = create_emoji_prompt(message.guild)
+        else:
+            # Get enhanced emoji prompt with visual descriptions
+            # Note: This now uses cached data, so it won't block
+            emoji_prompt = await create_enhanced_emoji_prompt(message.guild, db_manager)
         
         # Prepare prompt with personality, memory, and emoji information
         full_prompt = f"{personality_prompt}\n\nUser Memory: {user_memory}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI with the personality described above:"
