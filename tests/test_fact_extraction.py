@@ -120,3 +120,36 @@ async def test_update_user_memory_with_fact_extraction(db_manager):
         history = json.loads(memory["interaction_history"])
         assert len(history) == 1
         assert history[0]["user_message"] == "Hi, I'm Alice and my favorite color is blue."
+
+@pytest.mark.asyncio
+async def test_extract_facts_avoid_redundancy():
+    """Test that fact extraction avoids redundant entries."""
+    # Create a database manager with a temporary file
+    temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+    temp_db.close()
+    db_manager = DatabaseManager(temp_db.name)
+    
+    # Mock the LLM response that might create redundancy
+    mock_response = {
+        'choices': [{
+            'message': {
+                'content': '{"interests": "dogs", "preferences": "animals"}'
+            }
+        }]
+    }
+    
+    with patch('src.database.manager.litellm.completion', return_value=mock_response):
+        facts = await db_manager.extract_facts_from_interaction(
+            "I like dogs",
+            "That's great! Dogs are wonderful companions."
+        )
+        
+        assert isinstance(facts, dict)
+        # Should have extracted facts without creating overly complex nested structures
+        assert "interests" in facts or "preferences" in facts
+        # Should not have nested objects
+        for key, value in facts.items():
+            assert not isinstance(value, dict), f"Value for key '{key}' should not be a dict: {value}"
+    
+    # Clean up
+    os.unlink(temp_db.name)

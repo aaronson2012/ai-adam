@@ -72,8 +72,22 @@ class DatabaseManager:
         prompt = f"""
         Extract any factual information about the user from this conversation.
         Focus on personal details like name, preferences, interests, experiences, etc.
-        Return ONLY a JSON object with key-value pairs of facts.
-        If no facts can be extracted, return an empty JSON object {{}}.
+        
+        Return ONLY a JSON object with key-value pairs of facts using these specific categories when applicable:
+        - name: User's name
+        - age: User's age
+        - location: User's location
+        - occupation: User's job/occupation
+        - interests: Comma-separated list of user interests
+        - preferences: Comma-separated list of user preferences
+        - hobbies: Comma-separated list of user hobbies
+        - experiences: Comma-separated list of relevant experiences
+        
+        Guidelines:
+        - Use simple key-value pairs (e.g., "name": "John", not nested objects)
+        - Avoid redundant entries (e.g., if you extract "interests": "dogs", don't also add "preferences": "dogs")
+        - If no facts can be extracted, return an empty JSON object {{}}
+        - Be concise and avoid lengthy values
         
         User message: {user_message}
         """
