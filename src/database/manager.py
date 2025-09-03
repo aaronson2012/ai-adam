@@ -49,6 +49,15 @@ class DatabaseManager:
                 )
             ''')
             
+            # Create server_memory table for storing server-wide facts
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS server_memory (
+                    guild_id TEXT PRIMARY KEY,
+                    known_facts TEXT, -- JSON string to store known facts
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
             await db.commit()
             logger.info("Database initialized.")
 
@@ -282,6 +291,115 @@ class DatabaseManager:
             await db.commit()
             logger.debug(f"Cleared memory for user {user_id}")
             
+    async def get_server_memory(self, guild_id: str):
+        """Retrieve memory data for a specific server."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT known_facts FROM server_memory WHERE guild_id = ?", (guild_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return {"known_facts": row[0]}
+                else:
+                    # Return default/empty memory if server not found
+                    return {"known_facts": "{}"}
+                    
+    async def update_server_memory(self, guild_id: str, user_message: str = None, ai_response: str = None, additional_facts: dict = None):
+        """Update memory data for a specific server."""
+        # Get current server memory
+        current_memory = await self.get_server_memory(guild_id)
+        
+        # Parse existing facts
+        try:
+            existing_facts = json.loads(current_memory['known_facts']) if current_memory['known_facts'] else {}
+        except json.JSONDecodeError:
+            existing_facts = {}
+            
+        # Extract new facts from the conversation if we have a user message
+        new_facts = {}
+        if additional_facts:
+            # Use explicitly provided facts
+            new_facts = additional_facts
+        elif user_message:
+            # Extract server-wide facts from the message
+            new_facts = await self.extract_server_facts(user_message, ai_response, guild_id)
+        
+        # Merge facts
+        updated_facts = await self.merge_facts(existing_facts, new_facts)
+        
+        # Convert facts back to JSON string
+        updated_facts_json = json.dumps(updated_facts)
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''
+                INSERT OR REPLACE INTO server_memory (guild_id, known_facts)
+                VALUES (?, ?)
+            ''', (guild_id, updated_facts_json))
+            await db.commit()
+            logger.debug(f"Updated memory for server {guild_id}")
+            
+    async def extract_server_facts(self, user_message: str, ai_response: str = None, guild_id: str = None) -> Dict[str, str]:
+        """Extract server-wide facts from an interaction using an LLM."""
+        # Create a prompt to extract server-wide facts from the conversation
+        prompt = f"""
+        Extract any factual information that is relevant to the entire server/community from this conversation.
+        Focus on server details like server culture, inside jokes, server rules, community events, 
+        shared experiences, server traditions, notable server milestones, etc.
+        
+        Return ONLY a JSON object with key-value pairs of facts using these specific categories when applicable:
+        - server_culture: Description of the server's culture or vibe
+        - inside_jokes: Comma-separated list of server inside jokes
+        - server_rules: Comma-separated list of notable server rules
+        - community_events: Comma-separated list of regular or notable server events
+        - shared_experiences: Comma-separated list of shared experiences among server members
+        - server_traditions: Comma-separated list of server traditions or customs
+        - notable_milestones: Comma-separated list of notable server milestones or achievements
+        - server_topics: Comma-separated list of topics frequently discussed in the server
+        
+        Guidelines:
+        - Use simple key-value pairs (e.g., "server_culture": "gaming focused", not nested objects)
+        - Avoid redundant entries
+        - If no facts can be extracted, return an empty JSON object {{}}
+        - Be concise and avoid lengthy values
+        - ONLY extract facts that are explicitly stated or VERY strongly implied to be server-wide
+        - Focus on things that apply to the server/community as a whole, not individual users
+        - Be especially conservative - it's better to extract nothing than potentially incorrect server-wide facts
+        - When in doubt, extract fewer facts rather than potentially incorrect ones
+        
+        User message: {user_message}
+        """
+        
+        if ai_response:
+            prompt += f"\nAI response: {ai_response}"
+            
+        prompt += "\n\nExtracted facts as JSON:"
+        
+        try:
+            # Use the same model as configured for the bot
+            response = litellm.completion(
+                model="gemini/gemini-2.5-flash-lite",  # Using the same model as the bot
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=200
+            )
+            
+            # Extract the content and parse as JSON
+            content = response['choices'][0]['message']['content'].strip()
+            # Remove any markdown code block formatting
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.startswith("```"):
+                content = content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            
+            # Parse the JSON
+            facts = json.loads(content)
+            return facts if isinstance(facts, dict) else {}
+        except Exception as e:
+            logger.error(f"Error extracting server facts: {e}")
+            return {}
+
     async def get_server_personality(self, guild_id: str) -> str:
         """Retrieve the personality setting for a server."""
         async with aiosqlite.connect(self.db_path) as db:

@@ -283,6 +283,33 @@ async def on_message(message):
         # Retrieve user context/memory
         user_memory = await db_manager.get_user_memory(user_id)
         
+        # Retrieve server memory if in a guild
+        server_memory = {}
+        if message.guild:
+            server_memory = await db_manager.get_server_memory(str(message.guild.id))
+        
+        # Retrieve memories of other active users in the conversation (if in a guild)
+        other_user_memories = {}
+        if message.guild:
+            # Get recent message authors from the channel to identify active users
+            try:
+                recent_authors = set()
+                async for msg in message.channel.history(limit=10):
+                    if not msg.author.bot and str(msg.author.id) != user_id:
+                        recent_authors.add(str(msg.author.id))
+                
+                # Get memories for recent authors (limit to 3 to avoid overwhelming)
+                author_count = 0
+                for author_id in recent_authors:
+                    if author_count >= 3:
+                        break
+                    author_memory = await db_manager.get_user_memory(author_id)
+                    if author_memory and author_memory.get("known_facts"):
+                        other_user_memories[author_id] = author_memory
+                    author_count += 1
+            except Exception as e:
+                logger.warning(f"Could not fetch other user memories: {e}")
+        
         # Get the personality prompt for this server
         guild_id = message.guild.id if message.guild else "default"
         personality_name = await get_server_personality(guild_id)
@@ -324,11 +351,49 @@ async def on_message(message):
                 if key not in priority_keys and value and fact_count < 5:
                     limited_facts[key] = value
                     fact_count += 1
-            limited_memory = json.dumps(limited_facts) if limited_facts else "{}"
+            user_limited_memory = json.dumps(limited_facts) if limited_facts else "{}"
         except:
-            limited_memory = "{}"
+            user_limited_memory = "{}"
         
-        full_prompt = f"{personality_prompt}\n\nUser Memory: {limited_memory}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI with the personality described above:"
+        # Include server memory (limited)
+        server_facts = server_memory.get("known_facts", "{}")
+        try:
+            server_facts_dict = json.loads(server_facts)
+            # Limit server facts to avoid overwhelming
+            limited_server_facts = {}
+            server_fact_count = 0
+            for key, value in server_facts_dict.items():
+                if value and server_fact_count < 3:
+                    limited_server_facts[key] = value
+                    server_fact_count += 1
+            server_limited_memory = json.dumps(limited_server_facts) if limited_server_facts else "{}"
+        except:
+            server_limited_memory = "{}"
+        
+        # Include limited other user memories
+        other_memories_text = ""
+        if other_user_memories:
+            other_memories_parts = []
+            for user_id, memory in other_user_memories.items():
+                try:
+                    facts_dict = json.loads(memory.get("known_facts", "{}"))
+                    if facts_dict:
+                        # Only include the most important fact per user
+                        for key in ['name', 'interests', 'hobbies']:
+                            if key in facts_dict and facts_dict[key]:
+                                other_memories_parts.append(f"User {user_id}: {key}={facts_dict[key]}")
+                                break
+                        # If no priority facts, include first available fact
+                        if not other_memories_parts or not any(f"User {user_id}:" in part for part in other_memories_parts):
+                            first_key = next(iter(facts_dict))
+                            if facts_dict[first_key]:
+                                other_memories_parts.append(f"User {user_id}: {first_key}={facts_dict[first_key]}")
+                except:
+                    pass
+            if other_memories_parts:
+                other_memories_text = "\nOther active users: " + ", ".join(other_memories_parts[:3])  # Limit to 3 users
+        
+        full_prompt = f"{personality_prompt}\n\nUser Memory: {user_limited_memory}\nServer Memory: {server_limited_memory}{other_memories_text}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI with the personality described above:"
         
         # Call LLM
         try:
