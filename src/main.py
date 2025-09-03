@@ -6,6 +6,7 @@ import tomllib # For reading TOML config
 from dotenv import load_dotenv # For loading .env variables
 import litellm # For AI interactions
 import asyncio # For background tasks
+import json # For JSON handling
 # Import database manager
 from src.database.manager import DatabaseManager
 # Import personality system
@@ -509,14 +510,18 @@ async def on_message(message):
     # This allows other cogs like reactions to process the message as well
     # We need to manually call cog event handlers to avoid infinite loops
     logger.debug(f"Calling cog event handlers for message {message.id}")
-    for cog_name, cog in bot.cogs.items():
-        if hasattr(cog, 'on_message'):
-            try:
-                logger.debug(f"Calling on_message for cog: {cog_name}")
-                await cog.on_message(message)
-                logger.debug(f"Finished calling on_message for cog: {cog_name}")
-            except Exception as e:
-                logger.error(f"Error in cog {cog_name} on_message handler: {e}", exc_info=True)
+    # Safety check to ensure bot.cogs is iterable (fixes mock compatibility issues)
+    if hasattr(bot, 'cogs') and hasattr(bot.cogs, 'items'):
+        for cog_name, cog in bot.cogs.items():
+            if hasattr(cog, 'on_message'):
+                try:
+                    logger.debug(f"Calling on_message for cog: {cog_name}")
+                    await cog.on_message(message)
+                    logger.debug(f"Finished calling on_message for cog: {cog_name}")
+                except Exception as e:
+                    logger.error(f"Error in cog {cog_name} on_message handler: {e}", exc_info=True)
+    else:
+        logger.debug("Skipping cog event handlers - bot.cogs not properly initialized")
     logger.debug("Finished calling all cog event handlers")
 
 # --- Run the Bot ---

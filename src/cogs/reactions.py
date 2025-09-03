@@ -531,6 +531,17 @@ Respond ONLY with the JSON format specified above. Do not include any other text
                     if len(emoji_request) <= 2 and any(ord(char) > 127 for char in emoji_request):
                         logger.debug(f"Found emoji character: {emoji_request}")
                         return [emoji_request]
+                    # Check if it's in the Discord custom emoji format <:name:id> and extract the name
+                    import re
+                    discord_emoji_match = re.search(r"<:([^:]+):\d+>", emoji_request)
+                    if discord_emoji_match:
+                        emoji_name = discord_emoji_match.group(1)
+                        logger.debug(f"Found Discord emoji format, extracted name: {emoji_name}")
+                        # Try to find matching emoji by name
+                        for emoji in message.guild.emojis:
+                            if emoji_name.lower() == emoji.name.lower():
+                                logger.debug(f"Found matching custom emoji: {emoji}")
+                                return [str(emoji)]
                 
                 # Fallback if we can't determine the specific emoji
                 logger.debug("Could not determine specific emoji, returning fallback reaction")
@@ -577,6 +588,8 @@ Respond ONLY with a JSON array like:
 
 OR for custom emojis:
 ["custom_emoji_name", "👍", "😂"]
+
+IMPORTANT: For custom emoji names, use ONLY the name part (e.g., "jakeylook"), not the full Discord format like "<:jakeylook:1267924153114038272>".
 """
             logger.debug(f"AI prompt generated (first 200 chars): {prompt[:200]}...")
             
@@ -642,12 +655,15 @@ OR for custom emojis:
                     # Check if it's a custom emoji name
                     emoji_obj = discord.utils.get(message.guild.emojis, name=emoji_name)
                     if emoji_obj:
+                        # For custom emojis, we need to use the proper Discord format
+                        # The emoji_obj already contains the correct formatting when converted to string
                         reactions.append(str(emoji_obj))
                         logger.debug(f"Added custom emoji: {emoji_obj}")
                     else:
-                        # Assume it's a unicode emoji
+                        # Check if it's already in the proper Discord custom emoji format <:name:id>
+                        # or if it's a unicode emoji
                         reactions.append(emoji_name)
-                        logger.debug(f"Added unicode emoji: {emoji_name}")
+                        logger.debug(f"Added emoji: {emoji_name}")
                         
                 # Ensure we have at least one reaction
                 if not reactions:
