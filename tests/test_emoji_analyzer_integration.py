@@ -1,7 +1,7 @@
 import sys
 import os
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
 
 # Add the 'src' directory to the Python path so imports work correctly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -79,13 +79,11 @@ def test_emoji_encoder():
 @patch('src.utils.emoji_analyzer.download_emoji_image')
 @patch('src.utils.emoji_analyzer.litellm.completion')
 @patch('src.utils.emoji_analyzer.get_config')
-def test_get_custom_emoji_description_with_vision_model(mock_get_config, mock_completion, mock_download):
+@pytest.mark.asyncio
+async def test_get_custom_emoji_description_with_vision_model(mock_get_config, mock_completion, mock_download):
     """Test getting emoji description with a vision-capable model."""
     try:
-        from src.utils.emoji_analyzer import get_custom_emoji_description, emoji_cache
-        
-        # Clear cache for this test
-        emoji_cache.clear()
+        from src.utils.emoji_analyzer import get_custom_emoji_description
         
         # Mock config to return a vision model
         mock_get_config.return_value = {
@@ -108,20 +106,23 @@ def test_get_custom_emoji_description_with_vision_model(mock_get_config, mock_co
         mock_emoji.name = "smile"
         mock_emoji.url = "http://example.com/emoji.png"
         
+        # Create an async mock for the database manager
+        mock_db_manager = AsyncMock()
+        mock_db_manager.get_emoji_description.return_value = None  # No cached description
+        mock_db_manager.save_emoji_description = AsyncMock()
+        
         # Test the function
-        description = get_custom_emoji_description(mock_emoji)
+        description = await get_custom_emoji_description(mock_emoji, mock_db_manager)
         
         # Verify the result
         assert description == "A smiling face emoji"
         
-        # Verify cache was updated
-        emoji_key = f"{mock_emoji.guild.id}:{mock_emoji.name}"
-        assert emoji_key in emoji_cache
-        assert emoji_cache[emoji_key] == "A smiling face emoji"
-        
         # Verify the mocks were called correctly
         mock_download.assert_called_once_with("http://example.com/emoji.png")
         mock_completion.assert_called_once()
+        mock_db_manager.save_emoji_description.assert_called_once_with(
+            mock_emoji.guild.id, mock_emoji.name, "A smiling face emoji"
+        )
         
         print("✅ Custom emoji description with vision model working correctly")
         
@@ -131,13 +132,11 @@ def test_get_custom_emoji_description_with_vision_model(mock_get_config, mock_co
 @patch('src.utils.emoji_analyzer.download_emoji_image')
 @patch('src.utils.emoji_analyzer.litellm.completion')
 @patch('src.utils.emoji_analyzer.get_config')
-def test_get_custom_emoji_description_with_non_vision_model(mock_get_config, mock_completion, mock_download):
+@pytest.mark.asyncio
+async def test_get_custom_emoji_description_with_non_vision_model(mock_get_config, mock_completion, mock_download):
     """Test getting emoji description with a non-vision model."""
     try:
-        from src.utils.emoji_analyzer import get_custom_emoji_description, emoji_cache
-        
-        # Clear cache for this test
-        emoji_cache.clear()
+        from src.utils.emoji_analyzer import get_custom_emoji_description
         
         # Mock config to return a non-vision model
         mock_get_config.return_value = {
@@ -151,20 +150,23 @@ def test_get_custom_emoji_description_with_non_vision_model(mock_get_config, moc
         mock_emoji.guild.id = 12345
         mock_emoji.name = "smile"
         
+        # Create an async mock for the database manager
+        mock_db_manager = AsyncMock()
+        mock_db_manager.get_emoji_description.return_value = None  # No cached description
+        mock_db_manager.save_emoji_description = AsyncMock()
+        
         # Test the function
-        description = get_custom_emoji_description(mock_emoji)
+        description = await get_custom_emoji_description(mock_emoji, mock_db_manager)
         
         # Verify the result is a simple text description
         assert description == "Custom server emoji: smile"
         
-        # Verify cache was updated
-        emoji_key = f"{mock_emoji.guild.id}:{mock_emoji.name}"
-        assert emoji_key in emoji_cache
-        assert emoji_cache[emoji_key] == "Custom server emoji: smile"
-        
         # Verify no network calls were made
         mock_download.assert_not_called()
         mock_completion.assert_not_called()
+        mock_db_manager.save_emoji_description.assert_called_once_with(
+            mock_emoji.guild.id, mock_emoji.name, "Custom server emoji: smile"
+        )
         
         print("✅ Custom emoji description with non-vision model working correctly")
         
@@ -174,13 +176,11 @@ def test_get_custom_emoji_description_with_non_vision_model(mock_get_config, moc
 @patch('src.utils.emoji_analyzer.download_emoji_image')
 @patch('src.utils.emoji_analyzer.litellm.completion')
 @patch('src.utils.emoji_analyzer.get_config')
-def test_get_custom_emoji_description_download_failure(mock_get_config, mock_completion, mock_download):
+@pytest.mark.asyncio
+async def test_get_custom_emoji_description_download_failure(mock_get_config, mock_completion, mock_download):
     """Test getting emoji description when image download fails."""
     try:
-        from src.utils.emoji_analyzer import get_custom_emoji_description, emoji_cache
-        
-        # Clear cache for this test
-        emoji_cache.clear()
+        from src.utils.emoji_analyzer import get_custom_emoji_description
         
         # Mock config to return a vision model
         mock_get_config.return_value = {
@@ -198,20 +198,23 @@ def test_get_custom_emoji_description_download_failure(mock_get_config, mock_com
         mock_emoji.name = "smile"
         mock_emoji.url = "http://example.com/emoji.png"
         
+        # Create an async mock for the database manager
+        mock_db_manager = AsyncMock()
+        mock_db_manager.get_emoji_description.return_value = None  # No cached description
+        mock_db_manager.save_emoji_description = AsyncMock()
+        
         # Test the function
-        description = get_custom_emoji_description(mock_emoji)
+        description = await get_custom_emoji_description(mock_emoji, mock_db_manager)
         
         # Verify the result is a fallback text description
         assert description == "Custom server emoji: smile"
         
-        # Verify cache was updated
-        emoji_key = f"{mock_emoji.guild.id}:{mock_emoji.name}"
-        assert emoji_key in emoji_cache
-        assert emoji_cache[emoji_key] == "Custom server emoji: smile"
-        
         # Verify the download was attempted but no completion call was made
         mock_download.assert_called_once_with("http://example.com/emoji.png")
         mock_completion.assert_not_called()
+        mock_db_manager.save_emoji_description.assert_called_once_with(
+            mock_emoji.guild.id, mock_emoji.name, "Custom server emoji: smile"
+        )
         
         print("✅ Custom emoji description with download failure working correctly")
         
@@ -221,13 +224,11 @@ def test_get_custom_emoji_description_download_failure(mock_get_config, mock_com
 @patch('src.utils.emoji_analyzer.download_emoji_image')
 @patch('src.utils.emoji_analyzer.litellm.completion')
 @patch('src.utils.emoji_analyzer.get_config')
-def test_get_custom_emoji_description_api_failure(mock_get_config, mock_completion, mock_download):
+@pytest.mark.asyncio
+async def test_get_custom_emoji_description_api_failure(mock_get_config, mock_completion, mock_download):
     """Test getting emoji description when the API call fails."""
     try:
-        from src.utils.emoji_analyzer import get_custom_emoji_description, emoji_cache
-        
-        # Clear cache for this test
-        emoji_cache.clear()
+        from src.utils.emoji_analyzer import get_custom_emoji_description
         
         # Mock config to return a vision model
         mock_get_config.return_value = {
@@ -248,20 +249,23 @@ def test_get_custom_emoji_description_api_failure(mock_get_config, mock_completi
         mock_emoji.name = "smile"
         mock_emoji.url = "http://example.com/emoji.png"
         
+        # Create an async mock for the database manager
+        mock_db_manager = AsyncMock()
+        mock_db_manager.get_emoji_description.return_value = None  # No cached description
+        mock_db_manager.save_emoji_description = AsyncMock()
+        
         # Test the function
-        description = get_custom_emoji_description(mock_emoji)
+        description = await get_custom_emoji_description(mock_emoji, mock_db_manager)
         
         # Verify the result is a fallback text description
         assert description == "Custom server emoji: smile"
         
-        # Verify cache was updated
-        emoji_key = f"{mock_emoji.guild.id}:{mock_emoji.name}"
-        assert emoji_key in emoji_cache
-        assert emoji_cache[emoji_key] == "Custom server emoji: smile"
-        
         # Verify the mocks were called correctly
         mock_download.assert_called_once_with("http://example.com/emoji.png")
         mock_completion.assert_called_once()
+        mock_db_manager.save_emoji_description.assert_called_once_with(
+            mock_emoji.guild.id, mock_emoji.name, "Custom server emoji: smile"
+        )
         
         print("✅ Custom emoji description with API failure working correctly")
         
@@ -269,7 +273,8 @@ def test_get_custom_emoji_description_api_failure(mock_get_config, mock_completi
         pytest.fail(f"Error testing custom emoji description with API failure: {e}")
 
 @patch('src.utils.emoji_analyzer.get_custom_emoji_description')
-def test_analyze_server_emojis(mock_get_description):
+@pytest.mark.asyncio
+async def test_analyze_server_emojis(mock_get_description):
     """Test analyzing server emojis."""
     try:
         from src.utils.emoji_analyzer import analyze_server_emojis
@@ -288,8 +293,11 @@ def test_analyze_server_emojis(mock_get_description):
         mock_guild.emojis = [mock_emoji1, mock_emoji2]
         mock_guild.id = 99999
         
+        # Create an async mock for the database manager
+        mock_db_manager = AsyncMock()
+        
         # Test the function
-        result = analyze_server_emojis(mock_guild)
+        result = await analyze_server_emojis(mock_guild, mock_db_manager)
         
         # Verify the result
         assert len(result) == 2
@@ -308,7 +316,8 @@ def test_analyze_server_emojis(mock_get_description):
 
 @patch('src.utils.emoji_analyzer.analyze_server_emojis')
 @patch('src.utils.emoji_helper.create_emoji_prompt')
-def test_create_enhanced_emoji_prompt_with_descriptions(mock_create_prompt, mock_analyze_emojis):
+@pytest.mark.asyncio
+async def test_create_enhanced_emoji_prompt_with_descriptions(mock_create_prompt, mock_analyze_emojis):
     """Test creating enhanced emoji prompt with descriptions."""
     try:
         from src.utils.emoji_analyzer import create_enhanced_emoji_prompt
@@ -323,8 +332,11 @@ def test_create_enhanced_emoji_prompt_with_descriptions(mock_create_prompt, mock
         mock_guild = Mock()
         mock_guild.id = 99999
         
+        # Create an async mock for the database manager
+        mock_db_manager = AsyncMock()
+        
         # Test the function
-        result = create_enhanced_emoji_prompt(mock_guild)
+        result = await create_enhanced_emoji_prompt(mock_guild, mock_db_manager)
         
         # Verify the result contains the descriptions
         assert "Available server emojis with descriptions:" in result
@@ -342,7 +354,8 @@ def test_create_enhanced_emoji_prompt_with_descriptions(mock_create_prompt, mock
 
 @patch('src.utils.emoji_analyzer.analyze_server_emojis')
 @patch('src.utils.emoji_helper.create_emoji_prompt')
-def test_create_enhanced_emoji_prompt_without_descriptions(mock_create_prompt, mock_analyze_emojis):
+@pytest.mark.asyncio
+async def test_create_enhanced_emoji_prompt_without_descriptions(mock_create_prompt, mock_analyze_emojis):
     """Test creating enhanced emoji prompt when no descriptions are available."""
     try:
         from src.utils.emoji_analyzer import create_enhanced_emoji_prompt
@@ -357,8 +370,11 @@ def test_create_enhanced_emoji_prompt_without_descriptions(mock_create_prompt, m
         mock_guild = Mock()
         mock_guild.id = 99999
         
+        # Create an async mock for the database manager
+        mock_db_manager = AsyncMock()
+        
         # Test the function
-        result = create_enhanced_emoji_prompt(mock_guild)
+        result = await create_enhanced_emoji_prompt(mock_guild, mock_db_manager)
         
         # Verify the result is the fallback
         assert result == "\n\nAvailable server emojis: <:smile:12345>, <:heart:67890>\nPlease prioritize using these server emojis when appropriate"

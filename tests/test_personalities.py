@@ -54,4 +54,4 @@ def test_base_guidelines_inclusion():
     assert "DO NOT try to act like a human" in default_prompt
     assert "MAY use emojis naturally" in default_prompt
     assert "MAY ask clarifying questions" in default_prompt
-    assert "SHOULD prioritize using server-specific emojis" in default_prompt
+    assert "SHOULD prioritize using custom server emojis over standard emojis" in default_prompt

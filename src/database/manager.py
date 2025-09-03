@@ -36,6 +36,16 @@ class DatabaseManager:
                 )
             ''')
             
+            # Create server_personalities table for storing server personality settings
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS server_personalities (
+                    guild_id TEXT PRIMARY KEY,
+                    personality_name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
             await db.commit()
             logger.info("Database initialized.")
 
@@ -108,3 +118,25 @@ class DatabaseManager:
             ''', (emoji_key, description))
             await db.commit()
             logger.debug(f"Saved description for emoji {emoji_key}")
+            
+    async def get_server_personality(self, guild_id: str) -> str:
+        """Retrieve the personality setting for a server."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT personality_name FROM server_personalities WHERE guild_id = ?", (guild_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return row[0]
+                else:
+                    return "default"  # Default personality
+
+    async def set_server_personality(self, guild_id: str, personality_name: str):
+        """Save the personality setting for a server."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''
+                INSERT OR REPLACE INTO server_personalities (guild_id, personality_name, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''', (guild_id, personality_name))
+            await db.commit()
+            logger.debug(f"Set personality '{personality_name}' for guild {guild_id}")

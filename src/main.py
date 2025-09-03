@@ -145,6 +145,8 @@ intents.emojis = True # Needed to access server emojis
 
 # Initialize the bot with slash command support
 bot = discord.Bot(intents=intents)
+# Attach the database manager to the bot so cogs can access it
+bot.db_manager = db_manager
 
 # Force sync commands
 @bot.event
@@ -154,6 +156,22 @@ async def on_connect():
         logger.info("Syncing commands...")
         await bot.sync_commands()
         logger.info("Commands synced successfully")
+        
+# Also sync commands when the bot is ready
+@bot.event
+async def on_ready():
+    logger.info(f'Bot {bot.user} has connected to Discord!')
+    # Initialize database connection
+    await db_manager.init_db()
+    
+    # Force sync commands after registration
+    logger.info("Syncing commands after registration...")
+    await bot.sync_commands()
+    logger.info("Commands synced successfully after registration")
+    
+    # Additional debug info
+    logger.info(f"Bot ID: {bot.user.id}")
+    logger.info(f"Bot name: {bot.user.name}")
 
 @bot.slash_command(name="sync", description="Manually sync slash commands (admin only)")
 @commands.has_permissions(administrator=True)
@@ -163,51 +181,50 @@ async def sync_commands(ctx: discord.ApplicationContext):
     await bot.sync_commands()
     await ctx.respond("Commands synced successfully!", ephemeral=True)
 
-# Store the current personality for each server
-server_personalities = {}
-
-def get_server_personality(guild_id):
-    """Get the current personality for a server."""
-    return server_personalities.get(guild_id, "default")
-
-def set_server_personality(guild_id, personality):
-    """Set the current personality for a server."""
-    server_personalities[guild_id] = personality
-
-# --- Event Listeners ---
-@bot.event
-async def on_ready():
-    logger.info(f'Bot {bot.user} has connected to Discord!')
-    # Initialize database connection
-    await db_manager.init_db()
+# Load cogs before the bot is ready
+try:
+    # Import and register the personality commands
+    import src.cogs.personality
+    src.cogs.personality.setup(bot)
+    logger.info("Personality commands registered successfully")
     
-    # Load cogs
+    # Debug information about registered commands
+    logger.info(f"Registered slash commands: {[cmd.name for cmd in bot.pending_application_commands]}")
+    logger.info(f"Total number of registered commands: {len(bot.pending_application_commands)}")
+    
+    # Print details of each command
+    for cmd in bot.pending_application_commands:
+        logger.info(f"Command: {cmd.name}, Description: {cmd.description}")
+        
+except Exception as e:
+    logger.error(f"Failed to register personality commands: {e}")
+    import traceback
+    traceback.print_exc()
+
+# Import personality functions after bot setup
+from src.utils.personalities import get_server_personality as get_memory_server_personality, set_server_personality as set_memory_server_personality
+
+# Wrapper functions for database-backed personality storage
+async def get_server_personality(guild_id):
+    """Get the current personality for a server, with database persistence."""
+    # Try to get from database first
     try:
-        # Import and register the personality commands
-        import src.cogs.personality
-        src.cogs.personality.setup(bot)
-        logger.info("Personality commands registered successfully")
-        
-        # Debug information about registered commands
-        logger.info(f"Registered slash commands: {[cmd.name for cmd in bot.pending_application_commands]}")
-        logger.info(f"Total number of registered commands: {len(bot.pending_application_commands)}")
-        
-        # Print details of each command
-        for cmd in bot.pending_application_commands:
-            logger.info(f"Command: {cmd.name}, Description: {cmd.description}")
-            
-        # Force sync commands after registration
-        logger.info("Syncing commands after registration...")
-        await bot.sync_commands()
-        logger.info("Commands synced successfully after registration")
-        
-        # Additional debug info
-        logger.info(f"Bot ID: {bot.user.id}")
-        logger.info(f"Bot name: {bot.user.name}")
+        personality = await db_manager.get_server_personality(str(guild_id))
+        return personality
     except Exception as e:
-        logger.error(f"Failed to register personality commands: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error retrieving personality from database: {e}")
+        # Fallback to in-memory storage
+        return get_memory_server_personality(guild_id)
+
+async def set_server_personality(guild_id, personality):
+    """Set the current personality for a server, with database persistence."""
+    # Save to database
+    try:
+        await db_manager.set_server_personality(str(guild_id), personality)
+    except Exception as e:
+        logger.error(f"Error saving personality to database: {e}")
+        # Fallback to in-memory storage
+        set_memory_server_personality(guild_id, personality)
 
 @bot.event
 async def on_message(message):
@@ -237,14 +254,16 @@ async def on_message(message):
         
         # Get the personality prompt for this server
         guild_id = message.guild.id if message.guild else "default"
-        personality_name = get_server_personality(guild_id)
+        personality_name = await get_server_personality(guild_id)
+        logger.info(f"Using personality '{personality_name}' for guild {guild_id}")
         personality_prompt = get_personality_prompt(personality_name)
+        logger.debug(f"Personality prompt: {personality_prompt[:200]}...")
         
         # Get enhanced emoji prompt with visual descriptions
         emoji_prompt = await create_enhanced_emoji_prompt(message.guild, db_manager)
         
         # Prepare prompt with personality, memory, and emoji information
-        full_prompt = f"{personality_prompt}\n\nUser Memory: {user_memory}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI Adam:"
+        full_prompt = f"{personality_prompt}\n\nUser Memory: {user_memory}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI with the personality described above:"
         
         # Call LLM
         try:

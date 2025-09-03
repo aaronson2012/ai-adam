@@ -109,7 +109,7 @@ python src/main.py
 
 ## Personalities
 
-AI-Adam supports different personalities that change how the bot behaves and responds. Personalities are defined in `src/utils/personalities.py` and can be customized to match your server's needs.
+AI-Adam supports different personalities that change how the bot behaves and responds. Personalities are defined as TOML files in the `src/personalities/` directory and can be customized to match your server's needs.
 
 Each personality includes:
 - A name and description
@@ -126,6 +126,104 @@ The default personality is designed to be:
 - Witty and occasionally humorous
 - Curious and engaged
 - Appropriately casual
+
+### Adding New Personalities
+
+To add a new personality:
+
+1. Create a new TOML file in `src/personalities/` (copy `template.toml` as a starting point)
+2. Define the personality traits, communication style, and behavior patterns
+3. The new personality will automatically be available through the slash commands
+
+All personalities automatically inherit the base guidelines defined in `src/personalities/base_guidelines.toml`.
+
+#### Personality File Structure
+
+Each personality file follows this structure:
+
+```toml
+name = "Personality Name"
+description = "Brief description of what this personality does"
+
+[personality_traits]
+content = """
+Your personality traits include:
+- Trait 1
+- Trait 2
+- Trait 3
+"""
+
+[communication_style]
+content = """
+Communication style:
+- Style guideline 1
+- Style guideline 2
+- Style guideline 3
+"""
+
+[behavior_patterns]
+content = """
+Behavior patterns:
+- Behavior pattern 1
+- Behavior pattern 2
+- Behavior pattern 3
+"""
+```
+
+#### Base Guidelines
+
+All personalities inherit a set of base guidelines that ensure consistent behavior:
+
+- DO NOT try to act like a human - just be straightforward and natural
+- DO NOT use phrases that sound like an AI trying to be casual
+- DO NOT be artificially enthusiastic or energetic
+- DO respond like you're having a genuine conversation with a friend
+- DO be appropriately brief and to the point when that's called for
+- DO avoid over-explaining or being unnecessarily verbose
+- DO be genuine and authentic in your responses
+- You MAY use emojis naturally and sparingly (1-2 per message) to enhance communication
+- You MAY ask clarifying questions when needed, but do so sparingly
+- You SHOULD prioritize using server-specific emojis when available and appropriate
+
+These guidelines are defined in `src/personalities/base_guidelines.toml` and can be modified if needed.
+
+#### Example Personality
+
+Here's an example of a specialized personality for technical discussions:
+
+```toml
+name = "Tech Expert"
+description = "A knowledgeable technology expert who can explain complex technical concepts in simple terms"
+
+[personality_traits]
+content = """
+Your personality traits include:
+- Deep knowledge of technology and programming
+- Ability to explain complex topics in accessible language
+- Patient and thorough in explanations
+- Up-to-date with current technology trends
+- Practical and hands-on approach
+"""
+
+[communication_style]
+content = """
+Communication style:
+- Explain technical concepts clearly and without jargon when possible
+- Use analogies and examples to illustrate complex ideas
+- Break down complex problems into manageable steps
+- Provide code examples when relevant
+- Be precise and accurate in technical details
+"""
+
+[behavior_patterns]
+content = """
+Behavior patterns:
+- Anticipate follow-up questions and provide additional context
+- Offer multiple solutions when appropriate, explaining trade-offs
+- Admit when you don't know something rather than making things up
+- Suggest resources for further learning
+- Help debug code by asking targeted questions
+```
 
 ## Database
 
@@ -172,14 +270,11 @@ Through LiteLLM, AI-Adam supports numerous AI providers:
 pytest
 ```
 
-### Adding New Personalities
-
-1. Edit `src/utils/personalities.py`
-2. Add a new entry to the `PERSONALITIES` dictionary
-3. Define the personality traits, communication style, and behavior patterns
-4. The new personality will automatically be available through the slash commands
-
 ### Extending Functionality
+
+1. Add new cogs in the `src/cogs/` directory
+2. Load them in `src/main.py` in the `on_ready()` event
+3. Follow the existing pattern for consistency
 
 1. Add new cogs in the `src/cogs/` directory
 2. Load them in `src/main.py` in the `on_ready()` event

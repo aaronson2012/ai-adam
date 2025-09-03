@@ -1,7 +1,7 @@
 import sys
 import os
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, AsyncMock
 
 # Add the 'src' directory to the Python path so imports work correctly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -72,13 +72,10 @@ def test_is_vision_capable_model():
 @patch('src.utils.emoji_analyzer.litellm.completion')
 @patch('src.utils.emoji_analyzer.download_emoji_image')
 @patch('src.utils.emoji_analyzer.is_vision_capable_model')
-def test_get_custom_emoji_description_vision_model(mock_is_vision_capable, mock_download_emoji_image, mock_completion):
+@pytest.mark.asyncio
+async def test_get_custom_emoji_description_vision_model(mock_is_vision_capable, mock_download_emoji_image, mock_completion):
     """Test getting custom emoji description with vision model."""
     from src.utils.emoji_analyzer import get_custom_emoji_description
-    
-    # Clear the cache to avoid interference from other tests
-    from src.utils.emoji_analyzer import emoji_cache
-    emoji_cache.clear()
     
     # Create a mock emoji
     mock_emoji = Mock()
@@ -93,19 +90,21 @@ def test_get_custom_emoji_description_vision_model(mock_is_vision_capable, mock_
         Mock(message=Mock(content="This is a test emoji showing a smiley face"))
     ]
     
+    # Create an async mock for the database manager
+    mock_db_manager = AsyncMock()
+    mock_db_manager.get_emoji_description.return_value = None
+    
     # Test with a custom emoji
-    result = get_custom_emoji_description(mock_emoji)
+    # Note: We're not testing the database caching here, just the function logic
+    result = await get_custom_emoji_description(mock_emoji, mock_db_manager)
     assert isinstance(result, str)
     assert len(result) > 0
 
 @patch('src.utils.emoji_analyzer.is_vision_capable_model')
-def test_get_custom_emoji_description_non_vision_model(mock_is_vision_capable):
+@pytest.mark.asyncio
+async def test_get_custom_emoji_description_non_vision_model(mock_is_vision_capable):
     """Test getting custom emoji description with non-vision model."""
     from src.utils.emoji_analyzer import get_custom_emoji_description
-    
-    # Clear the cache to avoid interference from other tests
-    from src.utils.emoji_analyzer import emoji_cache
-    emoji_cache.clear()
     
     # Create a mock emoji
     mock_emoji = Mock()
@@ -115,23 +114,29 @@ def test_get_custom_emoji_description_non_vision_model(mock_is_vision_capable):
     # Mock the function to return False
     mock_is_vision_capable.return_value = False
     
+    # Create an async mock for the database manager
+    mock_db_manager = AsyncMock()
+    mock_db_manager.get_emoji_description.return_value = None
+    
     # Test with a custom emoji
-    result = get_custom_emoji_description(mock_emoji)
+    result = await get_custom_emoji_description(mock_emoji, mock_db_manager)
     assert result == "Custom server emoji: test_emoji"
 
-def test_analyze_server_emojis():
+@pytest.mark.asyncio
+async def test_analyze_server_emojis():
     """Test analyzing server emojis."""
     from src.utils.emoji_analyzer import analyze_server_emojis
     
     # Test with None guild
-    result = analyze_server_emojis(None)
+    result = await analyze_server_emojis(None, Mock())
     assert result == {}
 
-def test_create_enhanced_emoji_prompt():
+@pytest.mark.asyncio
+async def test_create_enhanced_emoji_prompt():
     """Test creating enhanced emoji prompt."""
     from src.utils.emoji_analyzer import create_enhanced_emoji_prompt
     
     # Test with None guild
-    result = create_enhanced_emoji_prompt(None)
+    result = await create_enhanced_emoji_prompt(None, Mock())
     # Should fall back to the simple emoji prompt
     assert isinstance(result, str)

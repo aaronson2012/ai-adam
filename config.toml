@@ -8,7 +8,7 @@
 # AI Settings
 [ai]
 # Default model to use (e.g., 'openai/gpt-4', 'anthropic/claude-3-opus', 'ollama/llama3')
-default_model = "gemini/gemini-2.5-flash-lite"
+default_model = "gemini/gemini-2.5-flash"
 # Vision model to use for image/emoji analysis (optional, falls back to default_model if not specified)
 # vision_model = "openai/gpt-4-vision-preview"
 
