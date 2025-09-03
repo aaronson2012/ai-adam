@@ -106,7 +106,7 @@ class ReactionCog(commands.Cog):
             async for msg in message.channel.history(limit=5, before=message):
                 # Skip bot messages except for AI responses
                 if not msg.author.bot or msg.author == self.bot.user:
-                    content = msg.content if msg.content else ""
+                    content = msg.content if msg.content and isinstance(msg.content, str) else ""
                     history.append(f"{msg.author.display_name}: {content}")
             
             if history:
@@ -155,7 +155,7 @@ class ReactionCog(commands.Cog):
             return False
             
         # Don't react if the message has no content or is too short
-        if not message.content:
+        if not message.content or not isinstance(message.content, str):
             # Increment counter but don't react
             await self.increment_messages_since_last_reaction(message.guild.id)
             return False
@@ -282,7 +282,7 @@ Should you react to this message? Respond ONLY with the JSON format specified ab
     async def get_appropriate_reaction_emojis(self, message: discord.Message) -> List[str]:
         """Get appropriate emojis to react with using AI analysis."""
         # Check if message has content
-        if not message.content:
+        if not message.content or not isinstance(message.content, str):
             return ["👍"]  # Fallback reaction
             
         # Get server personality for context
