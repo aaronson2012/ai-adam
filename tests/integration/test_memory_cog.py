@@ -32,4 +32,4 @@ def test_memory_cog_setup():
     # Get the call arguments to verify the command name
     call_args = mock_bot.slash_command.call_args_list[0][1]  # kwargs from the first call
     assert call_args.get('name') == 'memory'
-    assert call_args.get('description') == 'Retrieve memory information'
+    assert call_args.get('description') == 'Retrieve or clear memory'

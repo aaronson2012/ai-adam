@@ -125,7 +125,7 @@ python src/main.py
 ### Slash Commands
 
 - `/personality` - Set the bot's personality (shows autocomplete list of available personalities)
-- `/memory` - Retrieve memory information for users or servers
+- `/memory` - Retrieve or clear memory information for users or servers
 
 ## Personalities
 
@@ -264,13 +264,13 @@ AI-Adam remembers interactions with users to provide personalized responses over
 1. **Fact Learning**: The bot learns facts about users from conversations
 2. **Interaction History**: Last 20 interactions are stored for context
 3. **Server Memory**: Server-wide facts and community information
-4. **Memory Management**: Server administrators can view user memory
+4. **Memory Management**: Server administrators can view or clear user memory
 5. **Privacy**: Memory is stored locally and can be managed by server admins
 
 ### Memory Commands
 
-- `/memory target:user [user:@User]` - View memory information for a specific user (defaults to command user)
-- `/memory target:server` - View server-wide memory information
+- `/memory target:user [user:@User] [clear:true]` - View or clear memory information for a specific user (defaults to command user)
+- `/memory target:server [clear:true]` - View or clear server-wide memory information
 
 ## Emoji Intelligence
 

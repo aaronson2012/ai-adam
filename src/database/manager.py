@@ -291,6 +291,15 @@ class DatabaseManager:
             await db.commit()
             logger.debug(f"Cleared memory for user {user_id}")
             
+    async def clear_server_memory(self, guild_id: str):
+        """Clear all memory data for a specific server."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''
+                DELETE FROM server_memory WHERE guild_id = ?
+            ''', (guild_id,))
+            await db.commit()
+            logger.debug(f"Cleared memory for server {guild_id}")
+            
     async def get_server_memory(self, guild_id: str):
         """Retrieve memory data for a specific server."""
         async with aiosqlite.connect(self.db_path) as db:

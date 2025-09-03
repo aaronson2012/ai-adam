@@ -84,6 +84,7 @@ ai-adam/
 - Stores user memory with known facts and interaction history
 - Maintains last 20 interactions per user for context
 - Provides methods to get and update user memory
+- Provides methods to clear user and server memory
 - Caches emoji descriptions to avoid repeated processing across bot restarts
 - Stores server personality settings
 - Stores server-wide memory for community facts
@@ -116,9 +117,11 @@ ai-adam/
 
 #### Memory Commands (src/cogs/memory.py)
 - Implements slash command for memory management
-- `/memory` - Retrieve memory information for users or servers
+- `/memory` - Retrieve or clear memory information for users or servers
 - Supports retrieving memory for specific users
+- Supports clearing memory for users or servers with confirmation
 - Shows memory information in formatted embeds
+- All responses are ephemeral for privacy
 
 #### Reactions (src/cogs/reactions.py)
 - Automatically reacts to messages using AI analysis
@@ -168,10 +171,11 @@ The bot supports numerous AI provider API keys through environment variables, in
 - And many others (see .env.example for the complete list)
 
 ## Current Status
-The bot is configured to use `gemini/gemini-2.5-flash-lite` as the default AI model. It implements a memory system that learns from user interactions and can adapt its personality based on server preferences. The bot has three main slash commands: `/personality` for setting the bot's personality, `/memory` for viewing user/server memory, and automatic reactions that enhance conversations with appropriate emojis.
+The bot is configured to use `gemini/gemini-2.5-flash-lite` as the default AI model. It implements a memory system that learns from user interactions and can adapt its personality based on server preferences. The bot has three main slash commands: `/personality` for setting the bot's personality, `/memory` for viewing or clearing user/server memory, and automatic reactions that enhance conversations with appropriate emojis.
 
 ## Recent Improvements
 - Enhanced memory command with user parameter to retrieve memory for specific users
+- Enhanced memory command with clear functionality for users and servers
 - Improved emoji handling with better caching and reduced API usage
 - Added automatic reaction system that intelligently reacts to messages
 - Better error handling and logging throughout the codebase
