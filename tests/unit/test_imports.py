@@ -3,9 +3,9 @@
 import sys
 import os
 
-# Add the 'src' directory to the Python path so imports work correctly
+# Add the project root directory to the Python path so imports work correctly
 # when running this script directly.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # Now try to import the main modules of the project
 try:

@@ -15,9 +15,6 @@ from src.utils.emoji_analyzer import create_enhanced_emoji_prompt
 # Import emoji manager
 from src.utils.emoji_manager import EmojiManager
 
-# --- Configuration ---
-load_dotenv() # Load environment variables from .env
-
 # Load configuration from config.toml
 try:
     with open("config.toml", "rb") as f:
@@ -26,10 +23,25 @@ except FileNotFoundError:
     print("config.toml not found. Please create it based on config.example.toml")
     exit(1)
 
+# --- Logging ---
+logging.basicConfig(
+    level=getattr(logging, config['logging']['level'], logging.INFO),
+    format='%(asctime)s:%(levelname)s:%(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
+logger.debug("Configuration loaded successfully")
+logger.debug(f"Config content: {config}")
+
+# --- Configuration ---
+logger.debug("Loading environment variables from .env")
+load_dotenv() # Load environment variables from .env
+
 # Initialize database manager
+logger.debug(f"Initializing database manager with path: {config['database']['path']}")
 db_manager = DatabaseManager(config['database']['path'])
 
 # Initialize emoji manager
+logger.debug("Initializing emoji manager")
 emoji_manager = EmojiManager(db_manager)
 
 # --- Logging ---
@@ -139,9 +151,11 @@ llm_env_vars = [
 ]
 
 # Set environment variables for any that are defined in the actual environment
+logger.debug("Setting LLM environment variables")
 for var in llm_env_vars:
     if os.getenv(var) is not None:
         os.environ[var] = os.getenv(var)
+        logger.debug(f"Set environment variable: {var}")
 
 # Define bot intents (adjust as needed for your features)
 intents = discord.Intents.default()
@@ -160,6 +174,8 @@ bot.config = config
 @bot.event
 async def on_connect():
     logger.info("Bot connected to Discord gateway")
+    logger.debug(f"Bot user: {bot.user}")
+    logger.debug(f"Auto sync commands: {bot.auto_sync_commands}")
     if bot.auto_sync_commands:
         logger.info("Syncing commands...")
         await bot.sync_commands()
@@ -169,11 +185,19 @@ async def on_connect():
 @bot.event
 async def on_ready():
     logger.info(f'Bot {bot.user} has connected to Discord!')
+    logger.debug(f"Bot ID: {bot.user.id}")
+    logger.debug(f"Bot name: {bot.user.name}")
+    logger.debug(f"Number of guilds: {len(bot.guilds)}")
+    
     # Initialize database connection
+    logger.debug("Initializing database connection")
     await db_manager.init_db()
+    logger.debug("Database initialized successfully")
     
     # Start background emoji caching
+    logger.debug("Starting background emoji caching task")
     asyncio.create_task(emoji_manager.cache_emojis_on_startup(bot))
+    logger.debug("Background emoji caching task started")
     # Note: We're not starting the periodic background caching task here to avoid duplicate caching
     # The startup caching will handle initial emoji processing, and we can manually trigger
     # caching checks if needed
@@ -184,24 +208,28 @@ async def on_ready():
     logger.info("Commands synced successfully after registration")
     
     # Additional debug info
-    logger.info(f"Bot ID: {bot.user.id}")
-    logger.info(f"Bot name: {bot.user.name}")
+    logger.debug(f"Bot ID: {bot.user.id}")
+    logger.debug(f"Bot name: {bot.user.name}")
 
 
 
 # Load cogs before the bot is ready
 try:
+    logger.debug("Loading cogs...")
     # Import and register the personality commands
+    logger.debug("Importing personality cog")
     import src.cogs.personality
     src.cogs.personality.setup(bot)
     logger.info("Personality commands registered successfully")
     
     # Import and register the memory commands
+    logger.debug("Importing memory cog")
     import src.cogs.memory
     src.cogs.memory.setup(bot)
     logger.info("Memory commands registered successfully")
     
     # Import and register the reactions cog
+    logger.debug("Importing reactions cog")
     import src.cogs.reactions
     src.cogs.reactions.setup(bot)
     logger.info("Reactions cog registered successfully")
@@ -212,7 +240,7 @@ try:
     
     # Print details of each command
     for cmd in bot.pending_application_commands:
-        logger.info(f"Command: {cmd.name}, Description: {cmd.description}")
+        logger.debug(f"Command: {cmd.name}, Description: {cmd.description}")
         
 except Exception as e:
     logger.error(f"Failed to register commands: {e}")
@@ -246,51 +274,70 @@ async def set_server_personality(guild_id, personality):
 
 @bot.event
 async def on_message(message):
+    logger.debug(f"on_message event triggered for message ID {message.id}")
     # Ignore messages from the bot itself
     if message.author == bot.user:
+        logger.debug("Ignoring message from bot itself")
         return
 
     # Get user ID
     user_id = str(message.author.id)
+    logger.debug(f"Processing message from user ID: {user_id}")
     
     # --- AI Learning/Interaction Logic ---
     # Respond only when mentioned or in DM, but always learn from all messages
-    if bot.user.mentioned_in(message) or isinstance(message.channel, discord.DMChannel):
+    is_mentioned = bot.user.mentioned_in(message)
+    is_dm = isinstance(message.channel, discord.DMChannel)
+    logger.debug(f"Message is mentioned: {is_mentioned}, is DM: {is_dm}")
+    
+    if is_mentioned or is_dm:
+        logger.debug("Bot was mentioned or message is in DM, processing AI response")
         # Show typing indicator
+        logger.debug("Triggering typing indicator")
         await message.channel.trigger_typing()
         
         # Record the user's message first
+        logger.debug("Recording user's message in memory")
         interaction = {
             "user_message": message.content,
             "timestamp": str(message.created_at)
         }
         await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction)
+        logger.debug("User message recorded successfully")
         
         # Check if this is a memory update request (mentioning another user)
         target_user = None
         target_user_id = None
         if message.mentions and len(message.mentions) > 0:
+            logger.debug(f"Message contains mentions: {[m.name for m in message.mentions]}")
             # Check if the bot is mentioned and someone else is also mentioned
             bot_mentioned = any(mention.id == bot.user.id for mention in message.mentions)
             if bot_mentioned and len(message.mentions) > 1:
+                logger.debug("Bot mentioned along with other users, checking for memory update target")
                 # Find the non-bot mention to target for memory update
                 for mention in message.mentions:
                     if mention.id != bot.user.id:
                         target_user = mention
                         target_user_id = str(mention.id)
+                        logger.debug(f"Target user for memory update: {target_user.name} (ID: {target_user_id})")
                         break
         
         # Retrieve user context/memory
+        logger.debug("Retrieving user memory")
         user_memory = await db_manager.get_user_memory(user_id)
+        logger.debug(f"User memory retrieved: {user_memory}")
         
         # Retrieve server memory if in a guild
         server_memory = {}
         if message.guild:
+            logger.debug("Retrieving server memory")
             server_memory = await db_manager.get_server_memory(str(message.guild.id))
+            logger.debug(f"Server memory retrieved: {server_memory}")
         
         # Retrieve memories of other active users in the conversation (if in a guild)
         other_user_memories = {}
         if message.guild:
+            logger.debug("Retrieving memories of other active users")
             # Get recent message authors from the channel to identify active users
             try:
                 recent_authors = set()
@@ -298,20 +345,25 @@ async def on_message(message):
                     if not msg.author.bot and str(msg.author.id) != user_id:
                         recent_authors.add(str(msg.author.id))
                 
+                logger.debug(f"Recent authors identified: {recent_authors}")
+                
                 # Get memories for recent authors (limit to 3 to avoid overwhelming)
                 author_count = 0
                 for author_id in recent_authors:
                     if author_count >= 3:
                         break
+                    logger.debug(f"Retrieving memory for author ID: {author_id}")
                     author_memory = await db_manager.get_user_memory(author_id)
                     if author_memory and author_memory.get("known_facts"):
                         other_user_memories[author_id] = author_memory
+                        logger.debug(f"Memory retrieved for author {author_id}")
                     author_count += 1
             except Exception as e:
                 logger.warning(f"Could not fetch other user memories: {e}")
         
         # Get the personality prompt for this server
         guild_id = message.guild.id if message.guild else "default"
+        logger.debug(f"Getting personality for guild ID: {guild_id}")
         personality_name = await get_server_personality(guild_id)
         logger.info(f"Using personality '{personality_name}' for guild {guild_id}")
         personality_prompt = get_personality_prompt(personality_name)
@@ -319,22 +371,28 @@ async def on_message(message):
         
         # Check if emoji caching is in progress
         global emoji_manager
+        logger.debug("Checking if emoji caching is in progress")
         if emoji_manager.is_caching_in_progress():
+            logger.debug("Emoji caching in progress, using simple emoji prompt")
             # If caching is in progress, send a waiting message
             await message.channel.send("Emojis are currently being cached and processed. Please wait...")
             # Still create a simple emoji prompt without descriptions for now
             from src.utils.emoji_helper import create_emoji_prompt
             emoji_prompt = create_emoji_prompt(message.guild)
         else:
+            logger.debug("Getting enhanced emoji prompt with visual descriptions")
             # Get enhanced emoji prompt with visual descriptions
             # Note: This now uses cached data, so it won't block
             emoji_prompt = await create_enhanced_emoji_prompt(message.guild, db_manager)
+            logger.debug("Enhanced emoji prompt retrieved")
         
         # Prepare prompt with personality, memory, and emoji information
         # But limit how much memory we include to avoid over-referencing
+        logger.debug("Preparing user memory for prompt")
         memory_facts = user_memory.get("known_facts", "{}")
         try:
             facts_dict = json.loads(memory_facts)
+            logger.debug(f"User facts dictionary: {facts_dict}")
             # Only include a subset of facts to avoid overwhelming the conversation
             # And be more selective about which facts to include
             limited_facts = {}
@@ -352,13 +410,17 @@ async def on_message(message):
                     limited_facts[key] = value
                     fact_count += 1
             user_limited_memory = json.dumps(limited_facts) if limited_facts else "{}"
-        except:
+            logger.debug(f"Limited user memory: {user_limited_memory}")
+        except Exception as e:
+            logger.warning(f"Error processing user memory facts: {e}")
             user_limited_memory = "{}"
         
         # Include server memory (limited)
+        logger.debug("Preparing server memory for prompt")
         server_facts = server_memory.get("known_facts", "{}")
         try:
             server_facts_dict = json.loads(server_facts)
+            logger.debug(f"Server facts dictionary: {server_facts_dict}")
             # Limit server facts to avoid overwhelming
             limited_server_facts = {}
             server_fact_count = 0
@@ -367,31 +429,40 @@ async def on_message(message):
                     limited_server_facts[key] = value
                     server_fact_count += 1
             server_limited_memory = json.dumps(limited_server_facts) if limited_server_facts else "{}"
-        except:
+            logger.debug(f"Limited server memory: {server_limited_memory}")
+        except Exception as e:
+            logger.warning(f"Error processing server memory facts: {e}")
             server_limited_memory = "{}"
         
         # Include limited other user memories
+        logger.debug("Preparing other user memories for prompt")
         other_memories_text = ""
         if other_user_memories:
+            logger.debug(f"Processing memories for {len(other_user_memories)} other users")
             other_memories_parts = []
             for user_id, memory in other_user_memories.items():
                 try:
                     facts_dict = json.loads(memory.get("known_facts", "{}"))
+                    logger.debug(f"Processing memory for user {user_id}: {facts_dict}")
                     if facts_dict:
                         # Only include the most important fact per user
                         for key in ['name', 'interests', 'hobbies']:
                             if key in facts_dict and facts_dict[key]:
                                 other_memories_parts.append(f"User {user_id}: {key}={facts_dict[key]}")
+                                logger.debug(f"Added priority fact for user {user_id}: {key}")
                                 break
                         # If no priority facts, include first available fact
                         if not other_memories_parts or not any(f"User {user_id}:" in part for part in other_memories_parts):
                             first_key = next(iter(facts_dict))
                             if facts_dict[first_key]:
                                 other_memories_parts.append(f"User {user_id}: {first_key}={facts_dict[first_key]}")
-                except:
+                                logger.debug(f"Added first available fact for user {user_id}: {first_key}")
+                except Exception as e:
+                    logger.warning(f"Error processing memory for user {user_id}: {e}")
                     pass
             if other_memories_parts:
                 other_memories_text = "\nOther active users: " + ", ".join(other_memories_parts[:3])  # Limit to 3 users
+                logger.debug(f"Other user memories text: {other_memories_text}")
         
         full_prompt = f"{personality_prompt}\n\nUser Memory: {user_limited_memory}\nServer Memory: {server_limited_memory}{other_memories_text}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI with the personality described above:"
         
