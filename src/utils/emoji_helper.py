@@ -36,4 +36,4 @@ def create_emoji_prompt(guild):
         return ""
     
     emoji_list = ", ".join(server_emojis)
-    return f"\n\nAvailable server emojis: {emoji_list}\nPlease prioritize using these server emojis when appropriate, but don't go overboard (maximum 1-2 emojis per message)."
+    return f"\n\nAvailable server emojis: {emoji_list}\nPlease prioritize using these server emojis liberally and frequently to enhance communication and add personality to your responses."

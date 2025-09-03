@@ -181,7 +181,8 @@ async def create_enhanced_emoji_prompt(guild: discord.Guild, db_manager: Databas
     for emoji, description in emoji_descriptions.items():
         prompt_lines.append(f"- {emoji}: {description}")
     
-    prompt_lines.append("\nPlease prioritize using these server emojis when appropriate, but don't go overboard (maximum 1-2 emojis per message).")
-    prompt_lines.append("Use emojis naturally to enhance communication, not replace it.")
+    prompt_lines.append("\nPlease prioritize using these server emojis liberally and frequently to enhance communication and add personality to your responses.")
+    prompt_lines.append("Use multiple emojis in a single message when appropriate to express emotions or reactions.")
+    prompt_lines.append("Use emojis to 'spice things up' and make conversations more engaging.")
     
     return "\n".join(prompt_lines)
