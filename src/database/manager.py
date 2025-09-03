@@ -4,6 +4,7 @@ import aiosqlite
 import logging
 import os
 import json
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,26 @@ class DatabaseManager:
             ''', (emoji_key, description))
             await db.commit()
             logger.debug(f"Saved description for emoji {emoji_key}")
+            
+    async def remove_emoji_description(self, guild_id: int, emoji_name: str):
+        """Remove emoji description from cache."""
+        emoji_key = f"{guild_id}:{emoji_name}"
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''
+                DELETE FROM emoji_descriptions WHERE emoji_key = ?
+            ''', (emoji_key,))
+            await db.commit()
+            logger.debug(f"Removed description for emoji {emoji_key}")
+            
+    async def get_all_emoji_keys_for_guild(self, guild_id: int) -> List[str]:
+        """Get all emoji keys for a specific guild."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT emoji_key FROM emoji_descriptions WHERE emoji_key LIKE ?", (f"{guild_id}:%",)
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [row[0] for row in rows] if rows else []
             
     async def get_server_personality(self, guild_id: str) -> str:
         """Retrieve the personality setting for a server."""

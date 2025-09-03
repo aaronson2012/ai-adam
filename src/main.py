@@ -11,6 +11,8 @@ from src.database.manager import DatabaseManager
 from src.utils.personalities import get_personality_prompt, get_available_personalities, get_personality
 # Import emoji analyzer
 from src.utils.emoji_analyzer import create_enhanced_emoji_prompt
+# Import emoji manager
+from src.utils.emoji_manager import EmojiManager
 
 # --- Configuration ---
 load_dotenv() # Load environment variables from .env
@@ -25,6 +27,9 @@ except FileNotFoundError:
 
 # Initialize database manager
 db_manager = DatabaseManager(config['database']['path'])
+
+# Initialize emoji manager
+emoji_manager = EmojiManager(db_manager)
 
 # --- Logging ---
 logging.basicConfig(
@@ -164,6 +169,10 @@ async def on_ready():
     # Initialize database connection
     await db_manager.init_db()
     
+    # Start background emoji caching
+    asyncio.create_task(emoji_manager.cache_emojis_on_startup(bot))
+    await emoji_manager.start_background_caching(bot)
+    
     # Force sync commands after registration
     logger.info("Syncing commands after registration...")
     await bot.sync_commands()
@@ -260,6 +269,7 @@ async def on_message(message):
         logger.debug(f"Personality prompt: {personality_prompt[:200]}...")
         
         # Get enhanced emoji prompt with visual descriptions
+        # Note: This now uses cached data, so it won't block
         emoji_prompt = await create_enhanced_emoji_prompt(message.guild, db_manager)
         
         # Prepare prompt with personality, memory, and emoji information
@@ -286,4 +296,10 @@ async def on_message(message):
 
 # --- Run the Bot ---
 if __name__ == "__main__":
-    bot.run(DISCORD_TOKEN)
+    try:
+        bot.run(DISCORD_TOKEN)
+    except KeyboardInterrupt:
+        logger.info("Bot shutdown requested")
+    finally:
+        # Clean up background tasks
+        emoji_manager.cancel_background_task()
