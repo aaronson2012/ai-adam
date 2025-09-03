@@ -185,13 +185,7 @@ async def on_ready():
     logger.info(f"Bot ID: {bot.user.id}")
     logger.info(f"Bot name: {bot.user.name}")
 
-@bot.slash_command(name="sync", description="Manually sync slash commands (admin only)")
-@commands.has_permissions(administrator=True)
-async def sync_commands(ctx: discord.ApplicationContext):
-    """Manually sync slash commands"""
-    await ctx.defer(ephemeral=True)
-    await bot.sync_commands()
-    await ctx.respond("Commands synced successfully!", ephemeral=True)
+
 
 # Load cogs before the bot is ready
 try:
