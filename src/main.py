@@ -172,7 +172,9 @@ async def on_ready():
     
     # Start background emoji caching
     asyncio.create_task(emoji_manager.cache_emojis_on_startup(bot))
-    await emoji_manager.start_background_caching(bot)
+    # Note: We're not starting the periodic background caching task here to avoid duplicate caching
+    # The startup caching will handle initial emoji processing, and we can manually trigger
+    # caching checks if needed
     
     # Force sync commands after registration
     logger.info("Syncing commands after registration...")

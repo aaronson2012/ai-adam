@@ -33,6 +33,8 @@ class EmojiManager:
                 self.is_caching = True
                 for guild in bot.guilds:
                     await self._cache_guild_emojis(guild)
+                    # Add a small delay between processing each guild to prevent overwhelming the system
+                    await asyncio.sleep(1)
                 self.is_caching = False
                 
                 # Wait for a period before next check (e.g., 30 minutes)
@@ -44,8 +46,8 @@ class EmojiManager:
             except Exception as e:
                 logger.error(f"Error in background emoji caching: {e}")
                 self.is_caching = False
-                # Wait before retrying
-                await asyncio.sleep(60)  # 1 minute
+                # Wait before retrying (increased from 1 minute to 5 minutes to prevent excessive retries)
+                await asyncio.sleep(5 * 60)  # 5 minutes
                 
     async def check_emojis_for_guild(self, guild: discord.Guild):
         """
@@ -130,6 +132,8 @@ class EmojiManager:
             self.is_caching = True
             for guild in bot.guilds:
                 await self._cache_guild_emojis(guild)
+                # Add a small delay between processing each guild to prevent overwhelming the system
+                await asyncio.sleep(1)
             self.is_caching = False
             logger.info("Finished emoji caching on startup")
         except Exception as e:
