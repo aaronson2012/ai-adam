@@ -436,8 +436,13 @@ async def on_message(message):
     
     # Important: Process events for cogs after handling the message
     # This allows other cogs like reactions to process the message as well
-    # Since we're using discord.Bot (not commands.Bot), we need to manually dispatch events
-    bot.dispatch('message', message)
+    # We need to manually call cog event handlers to avoid infinite loops
+    for cog_name, cog in bot.cogs.items():
+        if hasattr(cog, 'on_message'):
+            try:
+                await cog.on_message(message)
+            except Exception as e:
+                logger.error(f"Error in cog {cog_name} on_message handler: {e}", exc_info=True)
 
 # --- Run the Bot ---
 if __name__ == "__main__":
