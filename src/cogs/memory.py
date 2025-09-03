@@ -14,13 +14,15 @@ def setup(bot):
     
     @bot.slash_command(name="memory", description="Retrieve memory information")
     async def memory(ctx: discord.ApplicationContext,
-                     target: discord.Option(str, "Target memory (user, server, or specific user)", 
+                     target: discord.Option(str, "Target memory type", 
                                           choices=["user", "server"], 
-                                          default="user") = "user"):
+                                          default="user") = "user",
+                     user: discord.Option(discord.Member, "Specific user to retrieve memory for (only for user target)", 
+                                        required=False) = None):
         """Retrieve memory information"""
         # Log the command execution
         logger.info(f"Memory command executed by {ctx.author} in guild {ctx.guild.id if ctx.guild else 'DM'}")
-        logger.info(f"Requested target: {target}")
+        logger.info(f"Requested target: {target}, user: {user}")
         
         try:
             if target == "server":
@@ -56,15 +58,19 @@ def setup(bot):
                     await ctx.respond("No server memory found.", ephemeral=True)
                     
             else:  # target == "user"
-                # Get user memory (the command user)
-                user_memory = await db_manager.get_user_memory(str(ctx.author.id))
+                # Determine which user's memory to retrieve
+                target_user = user if user else ctx.author
+                target_user_id = str(target_user.id)
+                
+                # Get user memory
+                user_memory = await db_manager.get_user_memory(target_user_id)
                 if user_memory and user_memory.get("known_facts"):
                     try:
                         facts = json.loads(user_memory["known_facts"])
                         if facts:
                             embed = discord.Embed(
-                                title=f"Memory for {ctx.author.display_name}",
-                                description="Personal facts and information",
+                                title=f"Memory for {target_user.display_name}",
+                                description=f"Personal facts and information for {target_user.mention}",
                                 color=discord.Color.green()
                             )
                             
@@ -76,11 +82,11 @@ def setup(bot):
                             
                             await ctx.respond(embed=embed)
                         else:
-                            await ctx.respond("No personal memory found.", ephemeral=True)
+                            await ctx.respond(f"No personal memory found for {target_user.mention}.", ephemeral=True)
                     except json.JSONDecodeError:
-                        await ctx.respond("No personal memory found.", ephemeral=True)
+                        await ctx.respond(f"No personal memory found for {target_user.mention}.", ephemeral=True)
                 else:
-                    await ctx.respond("No personal memory found.", ephemeral=True)
+                    await ctx.respond(f"No personal memory found for {target_user.mention}.", ephemeral=True)
                     
         except Exception as e:
             logger.error(f"Error retrieving memory: {e}")
