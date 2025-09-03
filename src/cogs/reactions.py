@@ -288,6 +288,9 @@ Should you react to this message? Respond ONLY with the JSON format specified ab
                     elif messages_since_last >= 2:  # At least 2 messages since last reaction
                         # 70% chance to react to high interest content
                         return should_react and random.random() < 0.7
+                    else:
+                        # If should_react is True and interest is high, still give it a chance
+                        return should_react and random.random() < 0.3
                 elif interest_level == "medium":
                     # React to medium interest content less frequently
                     if messages_since_last >= 5:  # At least 5 messages since last reaction
@@ -295,14 +298,21 @@ Should you react to this message? Respond ONLY with the JSON format specified ab
                     elif messages_since_last >= 3:  # At least 3 messages since last reaction
                         # 40% chance to react to medium interest content
                         return should_react and random.random() < 0.4
+                    else:
+                        # If should_react is True and interest is medium, still give it a small chance
+                        return should_react and random.random() < 0.1
                 elif interest_level == "low":
                     # Only react to low interest content very infrequently
                     if messages_since_last >= 10:  # At least 10 messages since last reaction
                         # 20% chance to react to low interest content
                         return should_react and random.random() < 0.2
+                    else:
+                        # Very low chance for low interest content
+                        return should_react and random.random() < 0.05
                         
-                # Default: Don't react if none of the above conditions are met
-                return False
+                # Default: If AI said should_react but none of the above conditions matched, 
+                # still give it a small chance to react
+                return should_react and random.random() < 0.1
                 
             except Exception as e:
                 logger.error(f"Error in AI completion: {e}")
