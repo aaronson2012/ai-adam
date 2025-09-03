@@ -433,6 +433,10 @@ async def on_message(message):
         # For passive listening, only extract facts if there's high confidence
         # and the message contains clear factual information about users
         await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction, passive_mode=True)
+    
+    # Important: Process commands/cogs after handling the message
+    # This allows other cogs like reactions to process the message as well
+    await bot.process_application_commands(message)
 
 # --- Run the Bot ---
 if __name__ == "__main__":
