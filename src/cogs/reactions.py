@@ -242,7 +242,22 @@ Should you react to this message? Respond ONLY with the JSON format specified ab
                     max_tokens=200
                 )
                 
-                content_response = response['choices'][0]['message']['content'].strip()
+                # SAFELY handle AI response content
+                content_response = ""
+                if (response and 
+                    'choices' in response and 
+                    len(response['choices']) > 0 and 
+                    response['choices'][0] and 
+                    'message' in response['choices'][0] and 
+                    response['choices'][0]['message'] and 
+                    'content' in response['choices'][0]['message']):
+                    content_response = response['choices'][0]['message']['content']
+                
+                # Validate content_response
+                if not content_response or not isinstance(content_response, str):
+                    content_response = ""
+                else:
+                    content_response = content_response.strip()
                 
                 # Parse JSON response
                 if content_response.startswith("```json"):
@@ -252,7 +267,12 @@ Should you react to this message? Respond ONLY with the JSON format specified ab
                 if content_response.endswith("```"):
                     content_response = content_response[:-3]
                     
-                result = json.loads(content_response)
+                # Additional safety check before JSON parsing
+                if not content_response or not isinstance(content_response, str):
+                    result = {"should_react": False, "interest_level": "low", "reason": "Invalid AI response"}
+                else:
+                    result = json.loads(content_response)
+                    
                 should_react = result.get("should_react", False)
                 interest_level = result.get("interest_level", "low")
                 
@@ -357,7 +377,22 @@ OR for custom emojis:
                     max_tokens=150
                 )
                 
-                content_response = response['choices'][0]['message']['content'].strip()
+                # SAFELY handle AI response content
+                content_response = ""
+                if (response and 
+                    'choices' in response and 
+                    len(response['choices']) > 0 and 
+                    response['choices'][0] and 
+                    'message' in response['choices'][0] and 
+                    response['choices'][0]['message'] and 
+                    'content' in response['choices'][0]['message']):
+                    content_response = response['choices'][0]['message']['content']
+                
+                # Validate content_response
+                if not content_response or not isinstance(content_response, str):
+                    content_response = ""
+                else:
+                    content_response = content_response.strip()
                 
                 # Parse JSON response
                 if content_response.startswith("```json"):
@@ -367,7 +402,11 @@ OR for custom emojis:
                 if content_response.endswith("```"):
                     content_response = content_response[:-3]
                     
-                emoji_names = json.loads(content_response)
+                # Additional safety check before JSON parsing
+                if not content_response or not isinstance(content_response, str):
+                    emoji_names = ["👍"]  # Safe fallback
+                else:
+                    emoji_names = json.loads(content_response)
                 
                 # Convert to actual emoji objects or unicode emojis
                 reactions = []
