@@ -35,6 +35,7 @@ async def test_personality_applied_in_ai_response():
     mock_message.channel = mock_channel
     mock_message.content = "What is your role?"
     mock_message.created_at = "2025-01-01 12:00:00"
+    mock_message.mentions = []
     
     # Create a mock guild
     mock_guild = Mock()
@@ -64,6 +65,7 @@ async def test_personality_applied_in_ai_response():
     with patch('src.main.db_manager') as mock_db_manager:
         mock_db_manager.update_user_memory = AsyncMock()
         mock_db_manager.get_user_memory = AsyncMock(return_value={"known_facts": "{}", "interaction_history": "[]"})
+        mock_db_manager.get_server_memory = AsyncMock(return_value={"known_facts": "{}"})
         
         # Mock litellm.completion to capture the prompt and return a mock response
         captured_prompt = {}

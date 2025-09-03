@@ -93,6 +93,7 @@ async def test_on_message_responds_when_mentioned(mock_message, mock_bot_user):
     with patch('src.main.db_manager') as mock_db_manager:
         mock_db_manager.update_user_memory = AsyncMock()
         mock_db_manager.get_user_memory = AsyncMock(return_value={"known_facts": "{}", "interaction_history": "[]"})
+        mock_db_manager.get_server_memory = AsyncMock(return_value={"known_facts": "{}"})
         
         # Mock litellm.completion to return a response
         mock_response = {

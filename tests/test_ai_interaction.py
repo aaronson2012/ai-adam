@@ -80,6 +80,7 @@ async def test_on_message_handles_exceptions(mock_message, mock_bot_user):
     with patch('src.main.db_manager') as mock_db_manager:
         mock_db_manager.update_user_memory = AsyncMock()
         mock_db_manager.get_user_memory = AsyncMock(return_value={"known_facts": "{}", "interaction_history": "[]"})
+        mock_db_manager.get_server_memory = AsyncMock(return_value={"known_facts": "{}"})
         
         # Mock litellm.completion to raise an exception
         with patch('src.main.litellm.completion', side_effect=Exception("Test error")):
@@ -110,6 +111,7 @@ async def test_on_message_processes_user_message(mock_message, mock_bot_user):
     with patch('src.main.db_manager') as mock_db_manager:
         mock_db_manager.update_user_memory = AsyncMock()
         mock_db_manager.get_user_memory = AsyncMock(return_value={"known_facts": "{}", "interaction_history": "[]"})
+        mock_db_manager.get_server_memory = AsyncMock(return_value={"known_facts": "{}"})
         
         # Mock litellm.completion to return a response
         mock_response = {
