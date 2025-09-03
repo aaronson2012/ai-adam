@@ -20,11 +20,17 @@ def setup(bot):
         for name in personalities:
             if ctx.value.lower() in name.lower():
                 personality_data = get_personality(name)
+                friendly_name = personality_data.get('name', name)  # Use the friendly name from data
                 description = personality_data.get('description', '')
-                # Truncate description to keep the option name reasonable
-                truncated_desc = (description[:70] + '...') if len(description) > 70 else description
-                # Format the name to include the description
-                display_name = f"{name} - {truncated_desc}" if description else name
+                
+                # Format the display name with the friendly name and description
+                if description:
+                    # Truncate description to keep the option name reasonable
+                    truncated_desc = (description[:70] + '...') if len(description) > 70 else description
+                    display_name = f"{friendly_name} - {truncated_desc}"
+                else:
+                    display_name = friendly_name
+                    
                 # Ensure the display name isn't too long (Discord has limits)
                 if len(display_name) > 100:
                     display_name = display_name[:97] + "..."
