@@ -184,14 +184,20 @@ class DatabaseManager:
         if interaction:
             # Use the new merge logic to handle duplicates
             history_list = await self._merge_interaction_with_history(history_list, interaction)
-        elif user_message and not interaction:
-            # If we have a user_message but no interaction dict, create one
-            # This is for cases where we're just recording a user message without AI response
+        elif user_message:
+            # Create an interaction entry with the current timestamp
+            timestamp = str(datetime.datetime.now())
             interaction_entry = {
                 "user_message": user_message,
-                "timestamp": str(datetime.datetime.now())
+                "timestamp": timestamp
             }
-            history_list.append(interaction_entry)
+            
+            # Add AI response if provided
+            if ai_response:
+                interaction_entry["ai_response"] = ai_response
+                
+            # Use the merge logic to handle duplicates
+            history_list = await self._merge_interaction_with_history(history_list, interaction_entry)
              
         # Keep last 20 interactions to allow for better context
         updated_history = json.dumps(history_list[-20:]) # Keep last 20 interactions
