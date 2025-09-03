@@ -434,9 +434,16 @@ async def on_message(message):
         # and the message contains clear factual information about users
         await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction, passive_mode=True)
     
-    # Important: Process commands/cogs after handling the message
+    # Important: Process application commands after handling the message
     # This allows other cogs like reactions to process the message as well
-    await bot.process_commands(message)
+    # Note: For discord.Bot, we need to manually trigger cog event handlers
+    # since process_application_commands is only for slash commands
+    for cog in bot.cogs.values():
+        if hasattr(cog, 'on_message'):
+            try:
+                await cog.on_message(message)
+            except Exception as e:
+                logger.error(f"Error in cog on_message handler: {e}", exc_info=True)
 
 # --- Run the Bot ---
 if __name__ == "__main__":
