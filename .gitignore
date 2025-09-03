@@ -165,8 +165,9 @@ data/*.sqlite
 data/*.sqlite3
 
 # dotenv
-# .env files are already in the untracked list, but let's be explicit
-.env*
+# .env files contain sensitive data and should not be tracked
+# .env.example is a template and can be tracked
+.env
 
 # OS generated files
 .DS_Store
