@@ -5,6 +5,7 @@ import logging
 import tomllib # For reading TOML config
 from dotenv import load_dotenv # For loading .env variables
 import litellm # For AI interactions
+import asyncio # For background tasks
 # Import database manager
 from src.database.manager import DatabaseManager
 # Import personality system
