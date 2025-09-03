@@ -443,29 +443,42 @@ OR for custom emojis:
     async def on_message(self, message: discord.Message):
         """Listen for messages and react appropriately using AI."""
         try:
+            logger.debug(f"ReactionCog.on_message called for message ID {message.id}")
+            
             # Only process messages in guilds (not DMs)
             if not message.guild:
+                logger.debug("Message is not in a guild, skipping reactions")
                 return
                 
             # Don't react to bot messages (including ourselves)
             if message.author.bot:
+                logger.debug("Message is from a bot, skipping reactions")
                 return
+                
+            logger.debug(f"Processing message from {message.author} in guild {message.guild.id}: {message.content[:100]}")
                 
             # Check if we should react to this message (using AI)
             should_react = await self.should_react_to_message(message)
+            logger.debug(f"should_react_to_message returned: {should_react}")
+            
             if not should_react:
+                logger.debug("AI determined not to react to this message")
                 return
                 
             # Get appropriate reactions (using AI)
             reactions = await self.get_appropriate_reaction_emojis(message)
+            logger.debug(f"get_appropriate_reaction_emojis returned: {reactions}")
             
             if reactions:
                 try:
+                    logger.debug(f"Attempting to add reactions {reactions} to message {message.id}")
                     # Add reactions to the message
                     for emoji in reactions:
+                        logger.debug(f"Adding reaction: {emoji}")
                         await message.add_reaction(emoji)
                         # Small delay between reactions to avoid rate limiting
                         await asyncio.sleep(0.5)
+                        logger.debug(f"Successfully added reaction: {emoji}")
                         
                     # Mark this message as recently reacted to
                     await self.add_recently_reacted(message.guild.id, message.id)
@@ -476,7 +489,7 @@ OR for custom emojis:
                     # Clean up old reactions periodically
                     await self.clean_old_reactions(message.guild.id)
                     
-                    logger.debug(f"Added reactions {reactions} to message {message.id} in guild {message.guild.id}")
+                    logger.info(f"Added reactions {reactions} to message {message.id} in guild {message.guild.id}")
                     
                 except discord.Forbidden:
                     # Bot doesn't have permission to add reactions
@@ -486,7 +499,9 @@ OR for custom emojis:
                     logger.error(f"HTTP error when adding reactions: {e}")
                 except Exception as e:
                     # Other errors
-                    logger.error(f"Unexpected error when adding reactions: {e}")
+                    logger.error(f"Unexpected error when adding reactions: {e}", exc_info=True)
+            else:
+                logger.debug("No reactions to add")
         except Exception as e:
             logger.error(f"Error in on_message listener: {e}", exc_info=True)
 

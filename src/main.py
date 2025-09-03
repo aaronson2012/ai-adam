@@ -437,12 +437,16 @@ async def on_message(message):
     # Important: Process events for cogs after handling the message
     # This allows other cogs like reactions to process the message as well
     # We need to manually call cog event handlers to avoid infinite loops
+    logger.debug(f"Calling cog event handlers for message {message.id}")
     for cog_name, cog in bot.cogs.items():
         if hasattr(cog, 'on_message'):
             try:
+                logger.debug(f"Calling on_message for cog: {cog_name}")
                 await cog.on_message(message)
+                logger.debug(f"Finished calling on_message for cog: {cog_name}")
             except Exception as e:
                 logger.error(f"Error in cog {cog_name} on_message handler: {e}", exc_info=True)
+    logger.debug("Finished calling all cog event handlers")
 
 # --- Run the Bot ---
 if __name__ == "__main__":
