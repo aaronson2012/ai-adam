@@ -250,19 +250,18 @@ async def on_message(message):
     # Get user ID
     user_id = str(message.author.id)
     
-    # Always update user memory with the new message, even if we don't respond
-    # This allows the bot to learn from all conversations it can see
-    interaction = {
-        "user_message": message.content,
-        "timestamp": str(message.created_at)
-    }
-    await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction)
-
     # --- AI Learning/Interaction Logic ---
     # Respond only when mentioned or in DM, but always learn from all messages
     if bot.user.mentioned_in(message) or isinstance(message.channel, discord.DMChannel):
         # Show typing indicator
         await message.channel.trigger_typing()
+        
+        # Record the user's message first
+        interaction = {
+            "user_message": message.content,
+            "timestamp": str(message.created_at)
+        }
+        await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction)
         
         # Retrieve user context/memory
         user_memory = await db_manager.get_user_memory(user_id)
@@ -299,6 +298,14 @@ async def on_message(message):
         except Exception as e:
             logger.error(f"Error processing AI response: {e}")
             await message.channel.send("Sorry, I encountered an error processing your request.")
+    else:
+        # Always update user memory with the new message, even if we don't respond
+        # This allows the bot to learn from all conversations it can see
+        interaction = {
+            "user_message": message.content,
+            "timestamp": str(message.created_at)
+        }
+        await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction)
 
 # --- Run the Bot ---
 if __name__ == "__main__":

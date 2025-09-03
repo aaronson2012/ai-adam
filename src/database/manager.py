@@ -6,6 +6,7 @@ import os
 import json
 from typing import List, Dict
 import litellm
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,27 @@ class DatabaseManager:
         merged.update(new_facts)
         return merged
 
+    async def _merge_interaction_with_history(self, history_list: list, new_interaction: dict) -> list:
+        """Merge a new interaction with the history, updating existing entries with the same timestamp."""
+        # Only try to merge if the new interaction has a timestamp
+        if 'timestamp' in new_interaction:
+            # Check if there's already an entry with the same timestamp
+            existing_entry_index = None
+            for i, existing_interaction in enumerate(history_list):
+                if existing_interaction.get('timestamp') == new_interaction.get('timestamp'):
+                    existing_entry_index = i
+                    break
+            
+            # If we found an existing entry with the same timestamp, update it
+            if existing_entry_index is not None:
+                # Update the existing entry with the new interaction data
+                history_list[existing_entry_index].update(new_interaction)
+                return history_list
+        
+        # If no timestamp or no matching entry, just add as a new entry
+        history_list.append(new_interaction)
+        return history_list
+
     async def update_user_memory(self, user_id: str, user_message: str = None, ai_response: str = None, interaction: dict = None):
         """Update memory data for a specific user."""
         # Get current memory
@@ -144,8 +166,18 @@ class DatabaseManager:
         except json.JSONDecodeError:
             history_list = []
             
+        # Handle interaction based on what parameters are provided
         if interaction:
-             history_list.append(interaction)
+            # Use the new merge logic to handle duplicates
+            history_list = await self._merge_interaction_with_history(history_list, interaction)
+        elif user_message and not interaction:
+            # If we have a user_message but no interaction dict, create one
+            # This is for cases where we're just recording a user message without AI response
+            interaction_entry = {
+                "user_message": user_message,
+                "timestamp": str(datetime.datetime.now())
+            }
+            history_list.append(interaction_entry)
              
         # Keep last 20 interactions to allow for better context
         updated_history = json.dumps(history_list[-20:]) # Keep last 20 interactions
