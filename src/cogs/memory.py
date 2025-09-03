@@ -11,10 +11,11 @@ def setup(bot):
     logger = logging.getLogger(__name__)
     logger.info("Setting up memory commands")
     
-    @bot.slash_command(name="memory", description="Get memory information about a user")
+    @bot.slash_command(name="memory", description="Get or clear memory information about a user")
     async def memory(ctx: discord.ApplicationContext,
-                     user: discord.Option(discord.User, "User to get memory for")):
-        """Get memory information about a specific user"""
+                     user: discord.Option(discord.User, "User to get memory for"),
+                     clear: discord.Option(bool, "Clear user's memory", required=False, default=False)):
+        """Get memory information about a specific user, optionally clearing it"""
         # Log the command execution
         logger.info(f"Memory command executed by {ctx.author} in guild {ctx.guild.id if ctx.guild else 'DM'} for user {user.id}")
         
@@ -22,6 +23,14 @@ def setup(bot):
         if not ctx.author.guild_permissions.manage_guild:
             logger.warning(f"User {ctx.author} attempted to view memory without permission")
             await ctx.respond("You need 'Manage Server' permissions to view user memory.", ephemeral=True)
+            return
+            
+        # Handle clear option
+        if clear:
+            # Confirm with the user before clearing memory
+            confirm_view = ConfirmClearView(ctx.author, user, db_manager)
+            await ctx.respond(f"Are you sure you want to clear all memory for {user.name}? This action cannot be undone.", 
+                              view=confirm_view, ephemeral=True)
             return
         
         # Get user memory from database
@@ -96,3 +105,48 @@ def setup(bot):
         await ctx.respond(embed=embed)
     
     logger.info("Memory commands setup completed")
+
+class ConfirmClearView(discord.ui.View):
+    def __init__(self, command_user, target_user, db_manager):
+        super().__init__(timeout=60)
+        self.command_user = command_user
+        self.target_user = target_user
+        self.db_manager = db_manager
+    
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger)
+    async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Check if the interaction is from the user who initiated the command
+        if interaction.user != self.command_user:
+            await interaction.response.send_message("You cannot confirm this action.", ephemeral=True)
+            return
+            
+        # Clear the user's memory
+        try:
+            user_id = str(self.target_user.id)
+            await self.db_manager.clear_user_memory(user_id)
+            await interaction.response.send_message(f"Successfully cleared memory for {self.target_user.name}.", ephemeral=True)
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error clearing memory for user {user_id}: {e}")
+            await interaction.response.send_message("Error clearing user memory.", ephemeral=True)
+        
+        # Disable the buttons after use
+        self.stop()
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+    
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Check if the interaction is from the user who initiated the command
+        if interaction.user != self.command_user:
+            await interaction.response.send_message("You cannot cancel this action.", ephemeral=True)
+            return
+            
+        await interaction.response.send_message("Memory clear operation cancelled.", ephemeral=True)
+        
+        # Disable the buttons after use
+        self.stop()
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)

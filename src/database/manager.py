@@ -256,6 +256,15 @@ class DatabaseManager:
                 rows = await cursor.fetchall()
                 return [row[0] for row in rows] if rows else []
             
+    async def clear_user_memory(self, user_id: str):
+        """Clear all memory data for a specific user."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''
+                DELETE FROM user_memory WHERE user_id = ?
+            ''', (user_id,))
+            await db.commit()
+            logger.debug(f"Cleared memory for user {user_id}")
+            
     async def get_server_personality(self, guild_id: str) -> str:
         """Retrieve the personality setting for a server."""
         async with aiosqlite.connect(self.db_path) as db:
