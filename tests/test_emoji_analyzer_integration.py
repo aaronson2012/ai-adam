@@ -285,9 +285,13 @@ async def test_analyze_server_emojis(mock_get_description):
         # Create a mock guild with emojis
         mock_emoji1 = Mock()
         mock_emoji1.__str__ = Mock(return_value="<:smile:12345>")
+        mock_emoji1.name = "smile"
+        mock_emoji1.id = "12345"
         
         mock_emoji2 = Mock()
         mock_emoji2.__str__ = Mock(return_value="<:heart:67890>")
+        mock_emoji2.name = "heart"
+        mock_emoji2.id = "67890"
         
         mock_guild = Mock()
         mock_guild.emojis = [mock_emoji1, mock_emoji2]

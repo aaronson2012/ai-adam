@@ -31,13 +31,15 @@ def test_get_server_emojis():
     # Test with mock guild that has emojis
     mock_emoji1 = Mock()
     mock_emoji1.name = "test1"
+    mock_emoji1.id = "12345"
     mock_emoji2 = Mock()
     mock_emoji2.name = "test2"
+    mock_emoji2.id = "67890"
     
     mock_guild.emojis = [mock_emoji1, mock_emoji2]
     result = get_server_emojis(mock_guild)
-    assert ":test1:" in result
-    assert ":test2:" in result
+    assert "<:test1:12345>" in result
+    assert "<:test2:67890>" in result
 
 def test_get_random_emojis():
     """Test getting random emojis."""
@@ -54,17 +56,20 @@ def test_get_random_emojis():
     # Test with mock guild that has emojis
     mock_emoji1 = Mock()
     mock_emoji1.name = "test1"
+    mock_emoji1.id = "12345"
     mock_emoji2 = Mock()
     mock_emoji2.name = "test2"
+    mock_emoji2.id = "67890"
     mock_emoji3 = Mock()
     mock_emoji3.name = "test3"
+    mock_emoji3.id = "11111"
     
     mock_guild.emojis = [mock_emoji1, mock_emoji2, mock_emoji3]
     result = get_random_emojis(mock_guild, 2)
     assert len(result) == 2
     # All results should be from the available emojis
     for emoji in result:
-        assert emoji in [":test1:", ":test2:", ":test3:"]
+        assert emoji in ["<:test1:12345>", "<:test2:67890>", "<:test3:11111>"]
 
 def test_create_emoji_prompt():
     """Test creating emoji prompt."""
@@ -81,12 +86,14 @@ def test_create_emoji_prompt():
     # Test with mock guild that has emojis
     mock_emoji1 = Mock()
     mock_emoji1.name = "test1"
+    mock_emoji1.id = "12345"
     mock_emoji2 = Mock()
     mock_emoji2.name = "test2"
+    mock_emoji2.id = "67890"
     
     mock_guild.emojis = [mock_emoji1, mock_emoji2]
     result = create_emoji_prompt(mock_guild)
     assert "Available server emojis:" in result
-    assert ":test1:" in result
-    assert ":test2:" in result
+    assert "<:test1:12345>" in result
+    assert "<:test2:67890>" in result
     assert "prioritize using these server emojis" in result

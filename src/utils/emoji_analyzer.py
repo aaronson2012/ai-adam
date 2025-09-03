@@ -179,9 +179,9 @@ async def create_enhanced_emoji_prompt(guild: discord.Guild, db_manager: Databas
     prompt_lines = ["\n\nAvailable server emojis with descriptions:"]
     
     for emoji, description in emoji_descriptions.items():
-        # Use :emoji_name: format instead of <:emoji_name:emoji_id:> format
-        if hasattr(emoji, 'name'):
-            emoji_name = f":{emoji.name}:"
+        # Use the proper Discord emoji format: <:emoji_name:emoji_id:> for static emojis
+        if hasattr(emoji, 'name') and hasattr(emoji, 'id'):
+            emoji_name = f"<:{emoji.name}:{emoji.id}>"
         else:
             emoji_name = str(emoji)
         prompt_lines.append(f"- {emoji_name}: {description}")

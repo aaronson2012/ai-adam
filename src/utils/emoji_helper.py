@@ -10,9 +10,9 @@ def get_server_emojis(guild):
     
     # Handle mock objects in tests
     try:
-        # Return a list of emoji name strings that can be used in messages
-        # Use :emoji_name: format instead of <:emoji_name:emoji_id:> format
-        return [f":{emoji.name}:" for emoji in guild.emojis]
+        # Return a list of emoji strings that can be used in messages
+        # Use the proper Discord emoji format: <:emoji_name:emoji_id:> for static emojis
+        return [f"<:{emoji.name}:{emoji.id}>" for emoji in guild.emojis]
     except (TypeError, AttributeError):
         # If guild.emojis is not iterable (e.g., in tests), return empty list
         return []
@@ -37,4 +37,7 @@ def create_emoji_prompt(guild):
         return ""
     
     emoji_list = ", ".join(server_emojis)
-    return f"\n\nAvailable server emojis: {emoji_list}\nPlease prioritize using these server emojis liberally and frequently to enhance communication and add personality to your responses."
+    return f"""
+
+Available server emojis: {emoji_list}
+Please prioritize using these server emojis liberally and frequently to enhance communication and add personality to your responses."""
