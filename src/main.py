@@ -279,7 +279,7 @@ async def on_message(message):
         global emoji_manager
         if emoji_manager.is_caching_in_progress():
             # If caching is in progress, send a waiting message
-            await message.channel.send("Emojis are currently being cached and processed. Please wait a moment before I can fully utilize them in my responses!")
+            await message.channel.send("Emojis are currently being cached and processed. Please wait...")
             # Still create a simple emoji prompt without descriptions for now
             from src.utils.emoji_helper import create_emoji_prompt
             emoji_prompt = create_emoji_prompt(message.guild)
