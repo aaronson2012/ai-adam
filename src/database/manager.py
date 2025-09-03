@@ -4,7 +4,8 @@ import aiosqlite
 import logging
 import os
 import json
-from typing import List
+from typing import List, Dict
+import litellm
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +65,78 @@ class DatabaseManager:
                     # Return default/empty memory if user not found
                     return {"known_facts": "{}", "interaction_history": "[]"}
 
-    async def update_user_memory(self, user_id: str, new_fact: str = None, interaction: dict = None):
+    async def extract_facts_from_interaction(self, user_message: str, ai_response: str = None) -> Dict[str, str]:
+        """Extract facts from an interaction using an LLM."""
+        # Create a prompt to extract facts from the conversation
+        prompt = f"""
+        Extract any factual information about the user from this conversation.
+        Focus on personal details like name, preferences, interests, experiences, etc.
+        Return ONLY a JSON object with key-value pairs of facts.
+        If no facts can be extracted, return an empty JSON object {{}}.
+        
+        User message: {user_message}
+        """
+        
+        if ai_response:
+            prompt += f"\nAI response: {ai_response}"
+            
+        prompt += "\n\nExtracted facts as JSON:"
+        
+        try:
+            # Use the same model as configured for the bot
+            # For now, we'll use a simple approach - in a real implementation, 
+            # you might want to use a smaller, faster model for this task
+            response = litellm.completion(
+                model="gemini/gemini-2.5-flash-lite",  # Using the same model as the bot
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=200
+            )
+            
+            # Extract the content and parse as JSON
+            content = response['choices'][0]['message']['content'].strip()
+            # Remove any markdown code block formatting
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.startswith("```"):
+                content = content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            
+            # Parse the JSON
+            facts = json.loads(content)
+            return facts if isinstance(facts, dict) else {}
+        except Exception as e:
+            logger.error(f"Error extracting facts: {e}")
+            return {}
+
+    async def merge_facts(self, existing_facts: Dict[str, str], new_facts: Dict[str, str]) -> Dict[str, str]:
+        """Merge new facts with existing facts, updating existing ones and adding new ones."""
+        merged = existing_facts.copy()
+        merged.update(new_facts)
+        return merged
+
+    async def update_user_memory(self, user_id: str, user_message: str = None, ai_response: str = None, interaction: dict = None):
         """Update memory data for a specific user."""
-        # This is a simplified example. A real implementation would need more robust logic
-        # to manage known facts and interaction history (e.g., appending, deduplication).
-        # For now, it just replaces or inserts basic data.
+        # Get current memory
         current_memory = await self.get_user_memory(user_id)
         
-        # Handle known facts (for future expansion)
-        updated_facts = new_fact or current_memory['known_facts']
+        # Parse existing facts
+        try:
+            existing_facts = json.loads(current_memory['known_facts']) if current_memory['known_facts'] else {}
+        except json.JSONDecodeError:
+            existing_facts = {}
+            
+        # Extract new facts from the conversation if we have a user message
+        new_facts = {}
+        if user_message:
+            new_facts = await self.extract_facts_from_interaction(user_message, ai_response)
+        
+        # Merge facts
+        updated_facts = await self.merge_facts(existing_facts, new_facts)
+        
+        # Convert facts back to JSON string
+        updated_facts_json = json.dumps(updated_facts)
         
         # Handle interaction history
         try:
@@ -90,7 +154,7 @@ class DatabaseManager:
             await db.execute('''
                 INSERT OR REPLACE INTO user_memory (user_id, known_facts, interaction_history)
                 VALUES (?, ?, ?)
-            ''', (user_id, updated_facts, updated_history))
+            ''', (user_id, updated_facts_json, updated_history))
             await db.commit()
             logger.debug(f"Updated memory for user {user_id}")
 

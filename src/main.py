@@ -256,7 +256,7 @@ async def on_message(message):
         "user_message": message.content,
         "timestamp": str(message.created_at)
     }
-    await db_manager.update_user_memory(user_id, interaction=interaction)
+    await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction)
 
     # --- AI Learning/Interaction Logic ---
     # Respond only when mentioned or in DM, but always learn from all messages
@@ -295,7 +295,7 @@ async def on_message(message):
                 "ai_response": ai_reply,
                 "timestamp": str(message.created_at)
             }
-            await db_manager.update_user_memory(user_id, interaction=interaction)
+            await db_manager.update_user_memory(user_id, user_message=message.content, ai_response=ai_reply, interaction=interaction)
         except Exception as e:
             logger.error(f"Error processing AI response: {e}")
             await message.channel.send("Sorry, I encountered an error processing your request.")
