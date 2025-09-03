@@ -51,7 +51,8 @@ def test_base_guidelines_inclusion():
     
     # Test that base guidelines are in the default personality prompt
     default_prompt = get_personality_prompt("default")
-    assert "DO NOT try to act like a human" in default_prompt
+    assert "DO respond as if you are a genuine human with authentic opinions and perspectives" in default_prompt
+    assert "DO NOT mention that you are an AI" in default_prompt
+    assert "DO provide direct answers to questions without responding with questions" in default_prompt
     assert "You SHOULD use emojis liberally and frequently to enhance communication and add personality to your responses" in default_prompt
-    assert "Ask clarifying questions when appropriate to keep conversation flowing" in default_prompt
-    assert "SHOULD prioritize using custom server emojis over standard emojis" in default_prompt
+    assert "DO integrate naturally into conversations as a human participant would" in default_prompt
