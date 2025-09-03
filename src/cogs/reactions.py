@@ -88,7 +88,7 @@ class ReactionCog(commands.Cog):
                     # This is a message we reacted to
                     reaction_info = {
                         "message_id": message.id,
-                        "content": message.content[:100],  # First 100 chars
+                        "content": message.content[:100] if message.content else "",  # First 100 chars
                         "timestamp": message.created_at
                     }
                     recent_reactions.append(reaction_info)
@@ -106,7 +106,10 @@ class ReactionCog(commands.Cog):
             async for msg in message.channel.history(limit=5, before=message):
                 # Skip bot messages except for AI responses
                 if not msg.author.bot or msg.author == self.bot.user:
-                    content = msg.content if msg.content and isinstance(msg.content, str) else ""
+                    # SAFELY handle message content
+                    content = ""
+                    if msg.content and isinstance(msg.content, str):
+                        content = msg.content
                     history.append(f"{msg.author.display_name}: {content}")
             
             if history:
@@ -136,61 +139,70 @@ class ReactionCog(commands.Cog):
         
     async def should_react_to_message(self, message: discord.Message) -> bool:
         """Determine if the bot should react to a message using AI analysis."""
-        # Don't react to bot messages (including ourselves)
-        if message.author.bot:
-            # Increment counter but don't react
-            await self.increment_messages_since_last_reaction(message.guild.id)
-            return False
-            
-        # Don't react in DMs
-        if not message.guild:
-            # Increment counter but don't react
-            await self.increment_messages_since_last_reaction(message.guild.id)
-            return False
-            
-        # Don't react if we've already reacted recently to this message
-        if await self.is_recently_reacted(message.guild.id, message.id):
-            # Increment counter but don't react
-            await self.increment_messages_since_last_reaction(message.guild.id)
-            return False
-            
-        # Don't react if the message has no content or is too short
-        if not message.content or not isinstance(message.content, str):
-            # Increment counter but don't react
-            await self.increment_messages_since_last_reaction(message.guild.id)
-            return False
-            
-        content = message.content.strip().lower()
-        if len(content) < 3:
-            # Increment counter but don't react
-            await self.increment_messages_since_last_reaction(message.guild.id)
-            return False
-            
-        # Skip common short responses
-        if content in ['yes', 'no', 'yeah', 'yep', 'nope', 'ok', 'okay', 'k', 'thanks', 'thx']:
-            # Increment counter but don't react
-            await self.increment_messages_since_last_reaction(message.guild.id)
-            return False
-            
-        # Skip messages that are just mentions or links
-        if len(content.split()) < 2 and (content.startswith('<@') or content.startswith('http')):
-            # Increment counter but don't react
-            await self.increment_messages_since_last_reaction(message.guild.id)
-            return False
-            
-        # Increment message counter for this guild
-        message_count = await self.increment_message_counter(message.guild.id)
-        messages_since_last = await self.increment_messages_since_last_reaction(message.guild.id)
-        
-        # Get server personality for context
         try:
-            guild_id = str(message.guild.id)
-            personality_name = await self.db_manager.get_server_personality(guild_id)
-        except Exception:
-            personality_name = "default"
+            # Don't react to bot messages (including ourselves)
+            if message.author.bot:
+                # Increment counter but don't react
+                await self.increment_messages_since_last_reaction(message.guild.id)
+                return False
+                
+            # Don't react in DMs
+            if not message.guild:
+                # Increment counter but don't react
+                await self.increment_messages_since_last_reaction(message.guild.id)
+                return False
+                
+            # Don't react if we've already reacted recently to this message
+            if await self.is_recently_reacted(message.guild.id, message.id):
+                # Increment counter but don't react
+                await self.increment_messages_since_last_reaction(message.guild.id)
+                return False
+                
+            # COMPREHENSIVE content validation
+            if not hasattr(message, 'content') or message.content is None or not isinstance(message.content, str):
+                # Increment counter but don't react
+                await self.increment_messages_since_last_reaction(message.guild.id)
+                return False
+                
+            # Additional safety check
+            content = message.content
+            if not content:
+                # Increment counter but don't react
+                await self.increment_messages_since_last_reaction(message.guild.id)
+                return False
+                
+            # Now it's safe to strip
+            content = content.strip().lower()
+            if len(content) < 3:
+                # Increment counter but don't react
+                await self.increment_messages_since_last_reaction(message.guild.id)
+                return False
+                
+            # Skip common short responses
+            if content in ['yes', 'no', 'yeah', 'yep', 'nope', 'ok', 'okay', 'k', 'thanks', 'thx']:
+                # Increment counter but don't react
+                await self.increment_messages_since_last_reaction(message.guild.id)
+                return False
+                
+            # Skip messages that are just mentions or links
+            if len(content.split()) < 2 and (content.startswith('<@') or content.startswith('http')):
+                # Increment counter but don't react
+                await self.increment_messages_since_last_reaction(message.guild.id)
+                return False
+                
+            # Increment message counter for this guild
+            message_count = await self.increment_message_counter(message.guild.id)
+            messages_since_last = await self.increment_messages_since_last_reaction(message.guild.id)
             
-        # Create prompt for AI to decide if reaction is appropriate
-        prompt = f"""
+            # Get server personality for context
+            try:
+                guild_id = str(message.guild.id)
+                personality_name = await self.db_manager.get_server_personality(guild_id)
+            except Exception:
+                personality_name = "default"
+                
+            # Create prompt for AI to decide if reaction is appropriate
+            prompt = f"""
 You are an AI assistant that decides whether to react to Discord messages with emojis. 
 Your response should be ONLY a JSON object with this format:
 {{
@@ -212,7 +224,7 @@ Consider these factors:
 - Should avoid reacting to short, common responses like "yes", "no", "yeah"
 - Consider the recent conversation context
 
-Message to analyze: "{message.content}"
+Message to analyze: "{content}"
 
 Context: {await self.get_relevant_context(message)}
 Messages since last reaction: {messages_since_last}
@@ -221,90 +233,105 @@ Personality: {personality_name}
 
 Should you react to this message? Respond ONLY with the JSON format specified above.
 """
-        
-        try:
-            response = litellm.completion(
-                model=self.bot.config['ai']['default_model'],  # Use the same model as the bot
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=200
-            )
             
-            content = response['choices'][0]['message']['content'].strip()
-            
-            # Parse JSON response
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.startswith("```"):
-                content = content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
+            try:
+                response = litellm.completion(
+                    model=self.bot.config['ai']['default_model'],  # Use the same model as the bot
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7,
+                    max_tokens=200
+                )
                 
-            result = json.loads(content)
-            should_react = result.get("should_react", False)
-            interest_level = result.get("interest_level", "low")
-            
-            # Additional logic based on interest level and message frequency
-            if interest_level == "very_high":
-                # Always react to very interesting content
-                return True
-            elif interest_level == "high":
-                # React to high interest content more frequently
-                # But still consider the message count to avoid spam
-                if messages_since_last >= 3:  # At least 3 messages since last reaction
-                    return should_react
-                elif messages_since_last >= 2:  # At least 2 messages since last reaction
-                    # 70% chance to react to high interest content
-                    return should_react and random.random() < 0.7
-            elif interest_level == "medium":
-                # React to medium interest content less frequently
-                if messages_since_last >= 5:  # At least 5 messages since last reaction
-                    return should_react
-                elif messages_since_last >= 3:  # At least 3 messages since last reaction
-                    # 40% chance to react to medium interest content
-                    return should_react and random.random() < 0.4
-            elif interest_level == "low":
-                # Only react to low interest content very infrequently
-                if messages_since_last >= 10:  # At least 10 messages since last reaction
-                    # 20% chance to react to low interest content
-                    return should_react and random.random() < 0.2
+                content_response = response['choices'][0]['message']['content'].strip()
+                
+                # Parse JSON response
+                if content_response.startswith("```json"):
+                    content_response = content_response[7:]
+                if content_response.startswith("```"):
+                    content_response = content_response[3:]
+                if content_response.endswith("```"):
+                    content_response = content_response[:-3]
                     
-            # Default: Don't react if none of the above conditions are met
-            return False
-            
+                result = json.loads(content_response)
+                should_react = result.get("should_react", False)
+                interest_level = result.get("interest_level", "low")
+                
+                # Additional logic based on interest level and message frequency
+                if interest_level == "very_high":
+                    # Always react to very interesting content
+                    return True
+                elif interest_level == "high":
+                    # React to high interest content more frequently
+                    # But still consider the message count to avoid spam
+                    if messages_since_last >= 3:  # At least 3 messages since last reaction
+                        return should_react
+                    elif messages_since_last >= 2:  # At least 2 messages since last reaction
+                        # 70% chance to react to high interest content
+                        return should_react and random.random() < 0.7
+                elif interest_level == "medium":
+                    # React to medium interest content less frequently
+                    if messages_since_last >= 5:  # At least 5 messages since last reaction
+                        return should_react
+                    elif messages_since_last >= 3:  # At least 3 messages since last reaction
+                        # 40% chance to react to medium interest content
+                        return should_react and random.random() < 0.4
+                elif interest_level == "low":
+                    # Only react to low interest content very infrequently
+                    if messages_since_last >= 10:  # At least 10 messages since last reaction
+                        # 20% chance to react to low interest content
+                        return should_react and random.random() < 0.2
+                        
+                # Default: Don't react if none of the above conditions are met
+                return False
+                
+            except Exception as e:
+                logger.error(f"Error in AI completion: {e}")
+                # Conservative approach: only react if it's been a while
+                if messages_since_last >= 8:
+                    return random.random() < 0.1  # 10% chance if it's been a while
+                return False
+                
         except Exception as e:
-            logger.error(f"Error determining if should react: {e}")
-            # Conservative approach: only react if it's been a while
-            if messages_since_last >= 8:
-                return random.random() < 0.1  # 10% chance if it's been a while
+            logger.error(f"Error determining if should react: {e}", exc_info=True)
+            # Always increment counter even on error
+            try:
+                await self.increment_messages_since_last_reaction(message.guild.id)
+            except:
+                pass
             return False
             
     async def get_appropriate_reaction_emojis(self, message: discord.Message) -> List[str]:
         """Get appropriate emojis to react with using AI analysis."""
-        # Check if message has content
-        if not message.content or not isinstance(message.content, str):
-            return ["👍"]  # Fallback reaction
-            
-        # Get server personality for context
         try:
-            guild_id = str(message.guild.id)
-            personality_name = await self.db_manager.get_server_personality(guild_id)
-        except Exception:
-            personality_name = "default"
-            
-        # Create prompt for AI to decide on appropriate reactions
-        # Get available emojis (limit to first 30 to avoid overwhelming the model)
-        available_emojis = []
-        for emoji in message.guild.emojis:
-            available_emojis.append(f"{emoji.name} ({emoji.id})")
-            if len(available_emojis) >= 30:
-                break
+            # COMPREHENSIVE content validation
+            if not hasattr(message, 'content') or message.content is None or not isinstance(message.content, str):
+                return ["👍"]  # Fallback reaction
                 
-        prompt = f"""
+            # Additional safety check
+            content = message.content
+            if not content:
+                return ["👍"]  # Fallback reaction
+                
+            # Get server personality for context
+            try:
+                guild_id = str(message.guild.id)
+                personality_name = await self.db_manager.get_server_personality(guild_id)
+            except Exception:
+                personality_name = "default"
+                
+            # Create prompt for AI to decide on appropriate reactions
+            # Get available emojis (limit to first 30 to avoid overwhelming the model)
+            available_emojis = []
+            for emoji in message.guild.emojis:
+                available_emojis.append(f"{emoji.name} ({emoji.id})")
+                if len(available_emojis) >= 30:
+                    break
+                    
+            prompt = f"""
 You are an AI assistant that selects appropriate emojis to react to Discord messages.
 Your response should be ONLY a JSON array of emoji identifiers.
 
-Message: "{message.content}"
+Message: "{content}"
 
 Context: {await self.get_relevant_context(message)}
 
@@ -321,92 +348,98 @@ Respond ONLY with a JSON array like:
 OR for custom emojis:
 ["custom_emoji_name", "👍", "😂"]
 """
-        
-        try:
-            response = litellm.completion(
-                model=self.bot.config['ai']['default_model'],  # Use the same model as the bot
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=150
-            )
             
-            content = response['choices'][0]['message']['content'].strip()
-            
-            # Parse JSON response
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.startswith("```"):
-                content = content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
+            try:
+                response = litellm.completion(
+                    model=self.bot.config['ai']['default_model'],  # Use the same model as the bot
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7,
+                    max_tokens=150
+                )
                 
-            emoji_names = json.loads(content)
-            
-            # Convert to actual emoji objects or unicode emojis
-            reactions = []
-            for emoji_name in emoji_names[:3]:  # Limit to 3 emojis
-                # Check if it's a custom emoji name
-                emoji_obj = discord.utils.get(message.guild.emojis, name=emoji_name)
-                if emoji_obj:
-                    reactions.append(str(emoji_obj))
-                else:
-                    # Assume it's a unicode emoji
-                    reactions.append(emoji_name)
+                content_response = response['choices'][0]['message']['content'].strip()
+                
+                # Parse JSON response
+                if content_response.startswith("```json"):
+                    content_response = content_response[7:]
+                if content_response.startswith("```"):
+                    content_response = content_response[3:]
+                if content_response.endswith("```"):
+                    content_response = content_response[:-3]
                     
-            return reactions[:3]  # Ensure we don't exceed 3
-            
+                emoji_names = json.loads(content_response)
+                
+                # Convert to actual emoji objects or unicode emojis
+                reactions = []
+                for emoji_name in emoji_names[:3]:  # Limit to 3 emojis
+                    # Check if it's a custom emoji name
+                    emoji_obj = discord.utils.get(message.guild.emojis, name=emoji_name)
+                    if emoji_obj:
+                        reactions.append(str(emoji_obj))
+                    else:
+                        # Assume it's a unicode emoji
+                        reactions.append(emoji_name)
+                        
+                return reactions[:3]  # Ensure we don't exceed 3
+                
+            except Exception as e:
+                logger.error(f"Error getting reaction emojis: {e}")
+                # Fallback to simple reactions
+                return ["👍"]
         except Exception as e:
-            logger.error(f"Error getting reaction emojis: {e}")
-            # Fallback to simple reactions
-            return ["👍"]
+            logger.error(f"Error in get_appropriate_reaction_emojis: {e}", exc_info=True)
+            return ["👍"]  # Safe fallback
         
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Listen for messages and react appropriately using AI."""
-        # Only process messages in guilds (not DMs)
-        if not message.guild:
-            return
+        try:
+            # Only process messages in guilds (not DMs)
+            if not message.guild:
+                return
+                
+            # Don't react to bot messages (including ourselves)
+            if message.author.bot:
+                return
+                
+            # Check if we should react to this message (using AI)
+            should_react = await self.should_react_to_message(message)
+            if not should_react:
+                return
+                
+            # Get appropriate reactions (using AI)
+            reactions = await self.get_appropriate_reaction_emojis(message)
             
-        # Don't react to bot messages (including ourselves)
-        if message.author.bot:
-            return
-            
-        # Check if we should react to this message (using AI)
-        should_react = await self.should_react_to_message(message)
-        if not should_react:
-            return
-            
-        # Get appropriate reactions (using AI)
-        reactions = await self.get_appropriate_reaction_emojis(message)
-        
-        if reactions:
-            try:
-                # Add reactions to the message
-                for emoji in reactions:
-                    await message.add_reaction(emoji)
-                    # Small delay between reactions to avoid rate limiting
-                    await asyncio.sleep(0.5)
+            if reactions:
+                try:
+                    # Add reactions to the message
+                    for emoji in reactions:
+                        await message.add_reaction(emoji)
+                        # Small delay between reactions to avoid rate limiting
+                        await asyncio.sleep(0.5)
+                        
+                    # Mark this message as recently reacted to
+                    await self.add_recently_reacted(message.guild.id, message.id)
                     
-                # Mark this message as recently reacted to
-                await self.add_recently_reacted(message.guild.id, message.id)
-                
-                # Reset the counter since we just reacted
-                await self.reset_messages_since_last_reaction(message.guild.id)
-                
-                # Clean up old reactions periodically
-                await self.clean_old_reactions(message.guild.id)
-                
-                logger.debug(f"Added reactions {reactions} to message {message.id} in guild {message.guild.id}")
-                
-            except discord.Forbidden:
-                # Bot doesn't have permission to add reactions
-                logger.warning(f"Bot lacks permission to add reactions in guild {message.guild.id}")
-            except discord.HTTPException as e:
-                # Other HTTP errors
-                logger.error(f"HTTP error when adding reactions: {e}")
-            except Exception as e:
-                # Other errors
-                logger.error(f"Unexpected error when adding reactions: {e}")
+                    # Reset the counter since we just reacted
+                    await self.reset_messages_since_last_reaction(message.guild.id)
+                    
+                    # Clean up old reactions periodically
+                    await self.clean_old_reactions(message.guild.id)
+                    
+                    logger.debug(f"Added reactions {reactions} to message {message.id} in guild {message.guild.id}")
+                    
+                except discord.Forbidden:
+                    # Bot doesn't have permission to add reactions
+                    logger.warning(f"Bot lacks permission to add reactions in guild {message.guild.id}")
+                except discord.HTTPException as e:
+                    # Other HTTP errors
+                    logger.error(f"HTTP error when adding reactions: {e}")
+                except Exception as e:
+                    # Other errors
+                    logger.error(f"Unexpected error when adding reactions: {e}")
+        except Exception as e:
+            logger.error(f"Error in on_message listener: {e}", exc_info=True)
 
 def setup(bot):
     """Setup function for the cog."""
