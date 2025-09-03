@@ -10,6 +10,8 @@ A Discord bot with AI chat capabilities and learning features. AI-Adam is design
 - **Emoji Intelligence**: Analyzes and understands server emojis for more contextual responses
 - **Slash Commands**: Easy-to-use slash commands for bot interaction
 - **Multi-model Support**: Works with numerous LLM providers through LiteLLM
+- **Server-specific Customization**: Each server can set its own personality
+- **Memory Management**: View and clear user memory with appropriate permissions
 
 ## Project Structure
 
@@ -17,13 +19,22 @@ A Discord bot with AI chat capabilities and learning features. AI-Adam is design
 ai-adam/
 ├── src/
 │   ├── cogs/                 # Discord bot commands and features
-│   │   └── personality.py    # Personality management commands
+│   │   ├── personality.py    # Personality management commands
+│   │   └── memory.py         # Memory management commands
 │   ├── database/             # Database management
 │   │   └── manager.py        # SQLite database operations
 │   ├── utils/                # Utility functions
 │   │   ├── personalities.py  # Personality definitions and management
 │   │   ├── emoji_analyzer.py # Emoji analysis and understanding
-│   │   └── emoji_helper.py   # Basic emoji handling utilities
+│   │   ├── emoji_helper.py   # Basic emoji handling utilities
+│   │   └── emoji_manager.py  # Emoji caching and management
+│   ├── personalities/        # Personality definition files
+│   │   ├── base_guidelines.toml  # Base guidelines for all personalities
+│   │   ├── default.toml      # Default personality
+│   │   ├── tech_expert.toml  # Technical expert personality
+│   │   ├── memer.toml        # Meme-focused personality
+│   │   ├── karen.toml        # Karen personality
+│   │   └── tifa_lockhart.toml # Tifa Lockhart personality
 │   ├── main.py               # Main bot entry point
 ├── tests/                    # Unit tests
 ├── data/                     # Database files
@@ -106,6 +117,7 @@ python src/main.py
 ### Slash Commands
 
 - `/personality` - Set the bot's personality (shows autocomplete list of available personalities)
+- `/memory` - Get or clear memory information about a user (requires "Manage Server" permissions)
 
 ## Personalities
 
@@ -126,6 +138,14 @@ The default personality is designed to be:
 - Witty and occasionally humorous
 - Curious and engaged
 - Appropriately casual
+
+### Available Personalities
+
+1. **Default** - A natural, conversational AI assistant
+2. **Tech Expert** - Knowledgeable technology expert who explains complex concepts simply
+3. **Memer** - Meme-focused personality with humorous responses
+4. **Karen** - Entitled customer service personality
+5. **Tifa Lockhart** - Character from Final Fantasy VII with caring and determined personality
 
 ### Adding New Personalities
 
@@ -181,9 +201,11 @@ All personalities inherit a set of base guidelines that ensure consistent behavi
 - DO be appropriately brief and to the point when that's called for
 - DO avoid over-explaining or being unnecessarily verbose
 - DO be genuine and authentic in your responses
-- You MAY use emojis naturally and sparingly (1-2 per message) to enhance communication
-- You MAY ask clarifying questions when needed, but do so sparingly
-- You SHOULD prioritize using server-specific emojis when available and appropriate
+- You SHOULD use emojis liberally and frequently to enhance communication and add personality to your responses
+- You MAY use multiple emojis in a single message to express emotions or reactions
+- You SHOULD prioritize using custom server emojis over standard emojis when available and appropriate
+- You MAY use standard emojis when no custom server emoji is suitable for the context
+- You SHOULD use emojis to "spice things up" and make conversations more engaging
 
 These guidelines are defined in `src/personalities/base_guidelines.toml` and can be modified if needed.
 
@@ -234,6 +256,30 @@ AI-Adam uses SQLite for storing user memory and interaction history. The databas
   - `known_facts`: JSON string of facts learned about the user
   - `interaction_history`: JSON string of recent interactions (last 20)
   - `last_updated`: Timestamp of last update
+- `emoji_descriptions` table with:
+  - `emoji_key`: Format guild_id:emoji_name
+  - `description`: Cached description of the emoji
+  - `created_at`: Timestamp when the description was created
+  - `updated_at`: Timestamp when the description was last updated
+- `server_personalities` table with:
+  - `guild_id`: Discord server ID
+  - `personality_name`: Name of the personality set for this server
+  - `created_at`: Timestamp when the personality was set
+  - `updated_at`: Timestamp when the personality was last updated
+
+## Memory System
+
+AI-Adam remembers interactions with users to provide personalized responses over time:
+
+1. **Fact Learning**: The bot learns facts about users from conversations
+2. **Interaction History**: Last 20 interactions are stored for context
+3. **Memory Management**: Server administrators can view and clear user memory
+4. **Privacy**: Memory is stored locally and can be cleared at any time
+
+### Memory Commands
+
+- `/memory <user>` - View memory information for a specific user
+- `/memory <user> clear:true` - Clear memory for a specific user (requires "Manage Server" permissions)
 
 ## Emoji Intelligence
 
@@ -242,11 +288,13 @@ AI-Adam can understand and use server-specific emojis. The bot:
 1. Analyzes custom server emojis
 2. Uses vision models to understand what emojis represent (when available)
 3. Incorporates emoji understanding into conversations
-4. Uses emojis naturally in responses (1-2 per message maximum)
+4. Uses emojis liberally to enhance communication
 
 ### Emoji Caching
 
 To improve performance and reduce API usage, AI-Adam caches emoji descriptions in the database. When the bot first encounters a custom emoji, it analyzes the emoji using a vision model (if available) and stores the description in the database. On subsequent encounters with the same emoji, the bot retrieves the cached description instead of re-analyzing the emoji, which significantly speeds up response times and reduces API costs.
+
+The bot automatically caches all emojis for all servers it's in when it starts up, and periodically checks for new emojis.
 
 ## Supported AI Providers
 
@@ -271,10 +319,6 @@ pytest
 ```
 
 ### Extending Functionality
-
-1. Add new cogs in the `src/cogs/` directory
-2. Load them in `src/main.py` in the `on_ready()` event
-3. Follow the existing pattern for consistency
 
 1. Add new cogs in the `src/cogs/` directory
 2. Load them in `src/main.py` in the `on_ready()` event
