@@ -46,6 +46,9 @@ async def test_on_message_always_updates_memory(mock_message, mock_bot_user):
     # Mock the mentioned_in method to return False (not mentioned)
     mock_bot_user.mentioned_in = Mock(return_value=False)
     
+    # Mock message mentions
+    mock_message.mentions = []
+    
     # Mock the database manager
     with patch('src.main.db_manager') as mock_db_manager:
         mock_db_manager.update_user_memory = AsyncMock()
@@ -82,6 +85,9 @@ async def test_on_message_responds_when_mentioned(mock_message, mock_bot_user):
     
     # Mock the mentioned_in method to return True (mentioned)
     mock_bot_user.mentioned_in = Mock(return_value=True)
+    
+    # Mock message mentions
+    mock_message.mentions = []
     
     # Mock the database manager
     with patch('src.main.db_manager') as mock_db_manager:

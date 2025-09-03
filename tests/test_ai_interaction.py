@@ -48,6 +48,9 @@ async def test_on_message_ignores_bot_messages(mock_message, mock_bot_user):
     # Mock the mentioned_in method to return False
     mock_bot_user.mentioned_in = Mock(return_value=False)
     
+    # Mock message mentions
+    mock_message.mentions = []
+    
     # Call the on_message function
     with patch('src.main.db_manager') as mock_db_manager:
         await src.main.on_message(mock_message)
@@ -69,6 +72,9 @@ async def test_on_message_handles_exceptions(mock_message, mock_bot_user):
     
     # Mock the mentioned_in method to return True
     mock_bot_user.mentioned_in = Mock(return_value=True)
+    
+    # Mock message mentions
+    mock_message.mentions = []
     
     # Mock the database manager to return some memory
     with patch('src.main.db_manager') as mock_db_manager:
@@ -96,6 +102,9 @@ async def test_on_message_processes_user_message(mock_message, mock_bot_user):
     
     # Mock the mentioned_in method to return True
     mock_bot_user.mentioned_in = Mock(return_value=True)
+    
+    # Mock message mentions
+    mock_message.mentions = []
     
     # Mock the database manager
     with patch('src.main.db_manager') as mock_db_manager:

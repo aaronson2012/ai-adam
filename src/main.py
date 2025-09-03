@@ -266,6 +266,20 @@ async def on_message(message):
         }
         await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction)
         
+        # Check if this is a memory update request (mentioning another user)
+        target_user = None
+        target_user_id = None
+        if message.mentions and len(message.mentions) > 0:
+            # Check if the bot is mentioned and someone else is also mentioned
+            bot_mentioned = any(mention.id == bot.user.id for mention in message.mentions)
+            if bot_mentioned and len(message.mentions) > 1:
+                # Find the non-bot mention to target for memory update
+                for mention in message.mentions:
+                    if mention.id != bot.user.id:
+                        target_user = mention
+                        target_user_id = str(mention.id)
+                        break
+        
         # Retrieve user context/memory
         user_memory = await db_manager.get_user_memory(user_id)
         
@@ -290,7 +304,31 @@ async def on_message(message):
             emoji_prompt = await create_enhanced_emoji_prompt(message.guild, db_manager)
         
         # Prepare prompt with personality, memory, and emoji information
-        full_prompt = f"{personality_prompt}\n\nUser Memory: {user_memory}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI with the personality described above:"
+        # But limit how much memory we include to avoid over-referencing
+        memory_facts = user_memory.get("known_facts", "{}")
+        try:
+            facts_dict = json.loads(memory_facts)
+            # Only include a subset of facts to avoid overwhelming the conversation
+            # And be more selective about which facts to include
+            limited_facts = {}
+            fact_count = 0
+            # Priority order for facts to include (most relevant first)
+            priority_keys = ['name', 'interests', 'preferences', 'hobbies']
+            # First include priority facts
+            for key in priority_keys:
+                if key in facts_dict and facts_dict[key] and fact_count < 3:
+                    limited_facts[key] = facts_dict[key]
+                    fact_count += 1
+            # Then include other facts up to the limit
+            for key, value in facts_dict.items():
+                if key not in priority_keys and value and fact_count < 5:
+                    limited_facts[key] = value
+                    fact_count += 1
+            limited_memory = json.dumps(limited_facts) if limited_facts else "{}"
+        except:
+            limited_memory = "{}"
+        
+        full_prompt = f"{personality_prompt}\n\nUser Memory: {limited_memory}\nUser Message: {message.content}{emoji_prompt}\nRespond as the AI with the personality described above:"
         
         # Call LLM
         try:
@@ -307,17 +345,29 @@ async def on_message(message):
                 "timestamp": str(message.created_at)
             }
             await db_manager.update_user_memory(user_id, user_message=message.content, ai_response=ai_reply, interaction=interaction)
+            
+            # If this was a memory update request for another user, update their memory too
+            if target_user_id:
+                target_facts = await db_manager.extract_targeted_facts(message.content, target_user_id, message.guild.members if message.guild else None)
+                if target_facts:
+                    # Update the target user's memory
+                    await db_manager.update_user_memory(target_user_id, user_message=message.content, additional_facts=target_facts)
+                    logger.info(f"Updated memory for target user {target_user_id} with facts: {target_facts}")
         except Exception as e:
             logger.error(f"Error processing AI response: {e}")
             await message.channel.send("Sorry, I encountered an error processing your request.")
     else:
         # Always update user memory with the new message, even if we don't respond
         # This allows the bot to learn from all conversations it can see
+        # But be more conservative about fact extraction in passive listening mode
         interaction = {
             "user_message": message.content,
             "timestamp": str(message.created_at)
         }
-        await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction)
+        
+        # For passive listening, only extract facts if there's high confidence
+        # and the message contains clear factual information about users
+        await db_manager.update_user_memory(user_id, user_message=message.content, interaction=interaction, passive_mode=True)
 
 # --- Run the Bot ---
 if __name__ == "__main__":

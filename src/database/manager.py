@@ -66,11 +66,11 @@ class DatabaseManager:
                     # Return default/empty memory if user not found
                     return {"known_facts": "{}", "interaction_history": "[]"}
 
-    async def extract_facts_from_interaction(self, user_message: str, ai_response: str = None) -> Dict[str, str]:
+    async def extract_facts_from_interaction(self, user_message: str, ai_response: str = None, context_user_id: str = None) -> Dict[str, str]:
         """Extract facts from an interaction using an LLM."""
         # Create a prompt to extract facts from the conversation
         prompt = f"""
-        Extract any factual information about the user from this conversation.
+        Extract any factual information about users from this conversation.
         Focus on personal details like name, preferences, interests, experiences, etc.
         
         Return ONLY a JSON object with key-value pairs of facts using these specific categories when applicable:
@@ -88,6 +88,13 @@ class DatabaseManager:
         - Avoid redundant entries (e.g., if you extract "interests": "dogs", don't also add "preferences": "dogs")
         - If no facts can be extracted, return an empty JSON object {{}}
         - Be concise and avoid lengthy values
+        - ONLY extract facts that are explicitly stated or VERY strongly implied
+        - If the message mentions someone else, ONLY extract facts if it's absolutely clear who is being referenced
+        - If you're unsure who is being referenced, DO NOT extract facts - better to be conservative
+        - If facts are clearly about the context user (ID: {context_user_id}), include them
+        - If facts are about someone else but you can't clearly identify who, DO NOT include them
+        - Be especially conservative about achievements, milestones, or specific numbers unless they are clearly stated
+        - When in doubt, extract fewer facts rather than potentially incorrect ones
         
         User message: {user_message}
         """
@@ -152,7 +159,7 @@ class DatabaseManager:
         history_list.append(new_interaction)
         return history_list
 
-    async def update_user_memory(self, user_id: str, user_message: str = None, ai_response: str = None, interaction: dict = None):
+    async def update_user_memory(self, user_id: str, user_message: str = None, ai_response: str = None, interaction: dict = None, additional_facts: dict = None, passive_mode: bool = False):
         """Update memory data for a specific user."""
         # Get current memory
         current_memory = await self.get_user_memory(user_id)
@@ -165,8 +172,18 @@ class DatabaseManager:
             
         # Extract new facts from the conversation if we have a user message
         new_facts = {}
-        if user_message:
-            new_facts = await self.extract_facts_from_interaction(user_message, ai_response)
+        if additional_facts:
+            # Use explicitly provided facts
+            new_facts = additional_facts
+        elif user_message:
+            # Extract facts from the message
+            if passive_mode:
+                # In passive mode, be more conservative about fact extraction
+                # Only extract very clear, explicit facts
+                new_facts = await self.extract_facts_from_interaction(user_message, ai_response, context_user_id=user_id)
+            else:
+                # In active mode, extract facts normally
+                new_facts = await self.extract_facts_from_interaction(user_message, ai_response, context_user_id=user_id)
         
         # Merge facts
         updated_facts = await self.merge_facts(existing_facts, new_facts)
