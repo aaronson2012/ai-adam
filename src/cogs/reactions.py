@@ -218,7 +218,7 @@ Should you react to this message? Respond ONLY with the JSON format specified ab
         
         try:
             response = litellm.completion(
-                model="gemini/gemini-2.5-flash-lite",  # Using the same model as the bot
+                model=self.bot.config['ai']['default_model'],  # Use the same model as the bot
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=200
@@ -314,7 +314,7 @@ OR for custom emojis:
         
         try:
             response = litellm.completion(
-                model="gemini/gemini-2.5-flash-lite",  # Using the same model as the bot
+                model=self.bot.config['ai']['default_model'],  # Use the same model as the bot
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=150

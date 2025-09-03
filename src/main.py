@@ -153,6 +153,8 @@ intents.emojis = True # Needed to access server emojis
 bot = discord.Bot(intents=intents)
 # Attach the database manager to the bot so cogs can access it
 bot.db_manager = db_manager
+# Attach config to bot for use by cogs
+bot.config = config
 
 # Force sync commands
 @bot.event
