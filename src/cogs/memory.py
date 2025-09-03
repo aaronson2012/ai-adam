@@ -172,6 +172,8 @@ class ConfirmClearView(discord.ui.View):
     
     @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger)
     async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Use the global logger variable
+        global logger
         logger.debug(f"Confirm button pressed by user {interaction.user}")
         # Check if the interaction is from the user who initiated the command
         if interaction.user != self.command_user:
@@ -197,7 +199,6 @@ class ConfirmClearView(discord.ui.View):
                 logger.info(msg)
                 await interaction.response.send_message(msg, ephemeral=True)
         except Exception as e:
-            logger = logging.getLogger(__name__)
             logger.error(f"Error clearing memory: {e}", exc_info=True)
             await interaction.response.send_message("Error clearing memory.", ephemeral=True)
         
@@ -210,6 +211,8 @@ class ConfirmClearView(discord.ui.View):
     
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Use the global logger variable
+        global logger
         logger.debug(f"Cancel button pressed by user {interaction.user}")
         # Check if the interaction is from the user who initiated the command
         if interaction.user != self.command_user:

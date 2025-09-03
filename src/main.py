@@ -512,14 +512,21 @@ async def on_message(message):
     logger.debug(f"Calling cog event handlers for message {message.id}")
     # Safety check to ensure bot.cogs is iterable (fixes mock compatibility issues)
     if hasattr(bot, 'cogs') and hasattr(bot.cogs, 'items'):
-        for cog_name, cog in bot.cogs.items():
-            if hasattr(cog, 'on_message'):
-                try:
-                    logger.debug(f"Calling on_message for cog: {cog_name}")
-                    await cog.on_message(message)
-                    logger.debug(f"Finished calling on_message for cog: {cog_name}")
-                except Exception as e:
-                    logger.error(f"Error in cog {cog_name} on_message handler: {e}", exc_info=True)
+        try:
+            # Additional check to ensure bot.cogs is actually iterable
+            iter(bot.cogs.items())
+        except TypeError:
+            # If bot.cogs.items() is not iterable (e.g., in test environment with Mock objects)
+            logger.debug("bot.cogs.items() is not iterable, skipping cog event handlers")
+        else:
+            for cog_name, cog in bot.cogs.items():
+                if hasattr(cog, 'on_message'):
+                    try:
+                        logger.debug(f"Calling on_message for cog: {cog_name}")
+                        await cog.on_message(message)
+                        logger.debug(f"Finished calling on_message for cog: {cog_name}")
+                    except Exception as e:
+                        logger.error(f"Error calling on_message for cog {cog_name}: {e}", exc_info=True)
     else:
         logger.debug("Skipping cog event handlers - bot.cogs not properly initialized")
     logger.debug("Finished calling all cog event handlers")
