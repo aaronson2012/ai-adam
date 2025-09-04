@@ -440,56 +440,9 @@ Respond ONLY with the JSON format specified above. Do not include any other text
             content_lower = content.lower()
             logger.debug(f"Message content: {content}")
             
-            # Check for explicit reaction requests and try to extract the requested emoji
-            # This handles cases like "this message should be reacted to with a dog emoji"
-            if ("should be reacted to" in content_lower or 
-                "react to this" in content_lower or 
-                "please react" in content_lower or
-                "react with" in content_lower):
-                logger.debug("Message contains explicit reaction request, trying to extract requested emoji")
-                # Try to extract the requested emoji
-                # Look for common patterns like "with a [emoji] emoji" or "with [emoji]"
-                import re
-                
-                # Pattern 1: "with a dog emoji" or "with dog emoji"
-                match = re.search(r"with a? ([^ ]+) emoji", content_lower)
-                if match:
-                    emoji_request = match.group(1)
-                    logger.debug(f"Found emoji request pattern 1: {emoji_request}")
-                    # Try to find a matching emoji
-                    for emoji in message.guild.emojis:
-                        if emoji_request in emoji.name.lower():
-                            logger.debug(f"Found matching custom emoji: {emoji}")
-                            return [str(emoji)]
-                
-                # Pattern 2: "with [emoji]"
-                match = re.search(r"with ([^ ]+)", content_lower)
-                if match:
-                    emoji_request = match.group(1)
-                    logger.debug(f"Found emoji request pattern 2: {emoji_request}")
-                    # Try to find a matching emoji
-                    for emoji in message.guild.emojis:
-                        if emoji_request in emoji.name.lower():
-                            logger.debug(f"Found matching custom emoji: {emoji}")
-                            return [str(emoji)]
-                    # Check if it's already an emoji character
-                    if len(emoji_request) <= 2 and any(ord(char) > 127 for char in emoji_request):
-                        logger.debug(f"Found emoji character: {emoji_request}")
-                        return [emoji_request]
-                    # Check if it's in the Discord custom emoji format <:name:id> and extract the name
-                    discord_emoji_match = re.search(r"<:([^:]+):\d+>", emoji_request)
-                    if discord_emoji_match:
-                        emoji_name = discord_emoji_match.group(1)
-                        logger.debug(f"Found Discord emoji format, extracted name: {emoji_name}")
-                        # Try to find matching emoji by name
-                        for emoji in message.guild.emojis:
-                            if emoji_name.lower() == emoji.name.lower():
-                                logger.debug(f"Found matching custom emoji: {emoji}")
-                                return [str(emoji)]
-                
-                # Fallback if we can't determine the specific emoji
-                logger.debug("Could not determine specific emoji, returning fallback reaction")
-                return ["👍"]
+            # All emoji selection is handled by the AI
+            # No special handling for explicit requests - the AI will determine appropriateness and emoji selection
+            logger.debug("Using AI to select appropriate emojis for reaction")
                 
             # Get server personality for context
             try:
