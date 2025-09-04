@@ -451,8 +451,7 @@ Respond ONLY with the JSON format specified above. Do not include any other text
             logger.debug(f"Available emojis: {len(available_emojis)}")
             
             # Generate a comprehensive list of Unicode emojis dynamically
-            unicode_emojis_info = "Common Unicode emojis you can use (use the actual emoji character):
-"
+            unicode_emojis_info = "Common Unicode emojis you can use (use the actual emoji character):\n"
             
             # Select representative emojis from different categories
             representative_emojis = {
@@ -468,12 +467,10 @@ Respond ONLY with the JSON format specified above. Do not include any other text
             
             # Add representative emojis to the prompt
             for category, emojis in representative_emojis.items():
-                unicode_emojis_info += f"- {category}: {' '.join(emojis)}
-"
+                unicode_emojis_info += f"- {category}: {' '.join(emojis)}\n"
             
             # Add special note about construction worker and dog emojis since those were specifically requested
-            unicode_emojis_info += "- Special emojis: 🐶 (dog), 🐕 (dog), 🧑‍🏭 (construction worker), 👷 (construction worker)
-"
+            unicode_emojis_info += "- Special emojis: 🐶 (dog), 🐕 (dog), 🧑‍🏭 (construction worker), 👷 (construction worker)\n"
             
             logger.debug("Generating AI prompt for emoji selection")
             prompt = f"""

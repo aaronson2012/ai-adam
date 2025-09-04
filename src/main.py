@@ -15,6 +15,9 @@ from src.utils.personalities import get_personality_prompt, get_available_person
 from src.utils.emoji_analyzer import create_enhanced_emoji_prompt
 # Import emoji manager
 from src.utils.emoji_manager import EmojiManager
+# Import emoji parser and validator
+from src.utils.emoji_parser import replace_emoji_tags
+from src.utils.ai_response_validator import validate_and_retry_ai_response
 
 # Load configuration from config.toml
 try:
@@ -472,16 +475,24 @@ async def on_message(message):
             response = litellm.completion(model=config['ai']['default_model'], messages=[{"role": "user", "content": full_prompt}])
             ai_reply = response['choices'][0]['message']['content']
             
+            # Validate and retry if needed for emoji tags
+            ai_reply, was_retried = await validate_and_retry_ai_response(
+                ai_reply, message.guild, config, full_prompt
+            )
+            
+            # Post-process to convert emoji tags to actual Discord emojis
+            processed_reply = replace_emoji_tags(ai_reply, message.guild)
+            
             # Send response
-            await message.channel.send(ai_reply)
+            await message.channel.send(processed_reply)
             
             # Update memory with the bot's response
             interaction = {
                 "user_message": message.content,
-                "ai_response": ai_reply,
+                "ai_response": processed_reply,
                 "timestamp": str(message.created_at)
             }
-            await db_manager.update_user_memory(user_id, user_message=message.content, ai_response=ai_reply, interaction=interaction)
+            await db_manager.update_user_memory(user_id, user_message=message.content, ai_response=processed_reply, interaction=interaction)
             
             # If this was a memory update request for another user, update their memory too
             if target_user_id:
