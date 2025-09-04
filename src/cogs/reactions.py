@@ -9,6 +9,7 @@ from typing import Dict, List, Set
 import json
 import litellm
 from collections import deque
+import emoji
 
 logger = logging.getLogger(__name__)
 
@@ -236,21 +237,6 @@ class ReactionCog(commands.Cog):
                 await self.increment_messages_since_last_reaction(message.guild.id)
                 return False
                 
-            # Check for explicit reaction requests before other filters
-            # This handles cases like "this message should be reacted to with a dog emoji"
-            if ("should be reacted to" in content_lower or 
-                "react to this" in content_lower or 
-                "please react" in content_lower or
-                "react with" in content_lower):
-                logger.debug("Message contains explicit reaction request")
-                # For explicit requests, give a higher chance to react
-                # But still increment the counter to avoid spam
-                await self.increment_messages_since_last_reaction(message.guild.id)
-                # 70% chance to react to explicit requests
-                should_react = random.random() < 0.7
-                logger.debug(f"Explicit request reaction decision: {should_react}")
-                return should_react
-                
             # Skip common short responses
             if content_lower in ['yes', 'no', 'yeah', 'yep', 'nope', 'ok', 'okay', 'k', 'thanks', 'thx']:
                 logger.debug("Message contains common short response, not reacting")
@@ -441,7 +427,7 @@ Respond ONLY with the JSON format specified above. Do not include any other text
             logger.debug(f"Message content: {content}")
             
             # All emoji selection is handled by the AI
-            # No special handling for explicit requests - the AI will determine appropriateness and emoji selection
+            # The AI will determine appropriateness and emoji selection based on the message content
             logger.debug("Using AI to select appropriate emojis for reaction")
                 
             # Get server personality for context
@@ -463,7 +449,32 @@ Respond ONLY with the JSON format specified above. Do not include any other text
                     logger.debug("Reached emoji limit of 30")
                     break
             logger.debug(f"Available emojis: {len(available_emojis)}")
-                    
+            
+            # Generate a comprehensive list of Unicode emojis dynamically
+            unicode_emojis_info = "Common Unicode emojis you can use (use the actual emoji character):
+"
+            
+            # Select representative emojis from different categories
+            representative_emojis = {
+                "People & Body": ["👍", "👎", "👏", "🙌", "🤝", "👋", "🙏", "💪", "🧠", "💯", "👀", "👂", "👃", "👄", "👅"],
+                "Animals": ["🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🦁", "🐮", "🐷", "🐸", "🐵", "🐔"],
+                "Food & Drink": ["🍎", "🍏", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🍈", "🍒", "🍑", "🥭", "🥥", "🥝"],
+                "Activities": ["⚽", "🏀", "🏈", "⚾", "🎾", "🏐", "🏉", "🎱", "🏓", "🏸", "🥅", "🏒", "🏑", "🏏", "⛳"],
+                "Travel & Places": ["🚗", "🚕", "🚙", "🚌", "🚎", "🏎️", "🚓", "🚑", "🚒", "🚐", "🚚", "🚛", "🚜", "🛴", "🚲"],
+                "Objects": ["📱", "💻", "⌨️", "🖥️", "🖨️", "🖱️", "🖲️", "💽", "💾", "💿", "📀", "📼", "📷", "📸", "📹"],
+                "Symbols": ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗"],
+                "Flags": ["🏁", "🚩", "🎌", "🏴", "🏳️", "🏳️‍🌈", "🏳️‍⚧️", "🏴‍☠️", "🇦🇨", "🇦🇩", "🇦🇪", "🇦🇫", "🇦🇬", "🇦🇮", "🇦🇱"]
+            }
+            
+            # Add representative emojis to the prompt
+            for category, emojis in representative_emojis.items():
+                unicode_emojis_info += f"- {category}: {' '.join(emojis)}
+"
+            
+            # Add special note about construction worker and dog emojis since those were specifically requested
+            unicode_emojis_info += "- Special emojis: 🐶 (dog), 🐕 (dog), 🧑‍🏭 (construction worker), 👷 (construction worker)
+"
+            
             logger.debug("Generating AI prompt for emoji selection")
             prompt = f"""
 You are an AI assistant that selects appropriate emojis to react to Discord messages.
@@ -477,6 +488,8 @@ Personality: {personality_name}
 
 Available custom emojis in this server (name and ID):
 {', '.join(available_emojis) if available_emojis else "No custom emojis available"}
+
+{unicode_emojis_info}
 
 Select 1-3 appropriate emojis to react with. For custom emojis, use just the name.
 For Unicode emojis, use the actual emoji character.
