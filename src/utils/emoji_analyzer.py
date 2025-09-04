@@ -225,15 +225,25 @@ async def create_enhanced_emoji_prompt(guild: discord.Guild, db_manager: Databas
     logger.debug("Creating detailed prompt with emoji descriptions")
     prompt_lines = ["\n\nAvailable server emojis with descriptions:"]
     
-    for emoji, description in emoji_descriptions.items():
-        # The emoji key is already in the proper Discord format: <:emoji_name:emoji_id:>
-        # No need to modify it further
-        prompt_lines.append(f"- {emoji}: {description}")
-        logger.debug(f"Added emoji description: {emoji}: {description}")
+    # Convert Discord emoji format to curly brace format for AI consumption
+    for emoji_key, description in emoji_descriptions.items():
+        # Extract emoji name from Discord format <:emoji_name:123456789>
+        if emoji_key.startswith("<:") and ":" in emoji_key:
+            # Extract the emoji name (between the first and last colon)
+            emoji_name = emoji_key.split(":")[1]
+            # Format for AI consumption using curly braces
+            prompt_lines.append(f"- {{{emoji_name}}}: {description}")
+            logger.debug(f"Added emoji description: {{{emoji_name}}}: {description}")
+        else:
+            # If it's already in the right format or is a Unicode emoji, use as-is
+            prompt_lines.append(f"- {emoji_key}: {description}")
+            logger.debug(f"Added emoji description: {emoji_key}: {description}")
     
     prompt_lines.append("\nPlease prioritize using these server emojis liberally and frequently to enhance communication and add personality to your responses.")
     prompt_lines.append("Use multiple emojis in a single message when appropriate to express emotions or reactions.")
     prompt_lines.append("Use emojis to 'spice things up' and make conversations more engaging.")
+    prompt_lines.append("Remember to use the curly brace format {emoji_name} for custom server emojis.")
+    prompt_lines.append("Do NOT use the Discord emoji format like <:emoji_name:123456789>.")
     
     prompt = "\n".join(prompt_lines)
     logger.debug(f"Enhanced emoji prompt created (first 200 chars): {prompt[:200]}...")

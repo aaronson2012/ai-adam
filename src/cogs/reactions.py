@@ -11,6 +11,9 @@ import litellm
 from collections import deque
 import emoji
 
+# Import emoji formatter
+from src.utils.emoji_formatter import format_emojis_for_discord
+
 logger = logging.getLogger(__name__)
 
 class ReactionCog(commands.Cog):

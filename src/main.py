@@ -18,6 +18,8 @@ from src.utils.emoji_manager import EmojiManager
 # Import emoji parser and validator
 from src.utils.emoji_parser import replace_emoji_tags
 from src.utils.ai_response_validator import validate_and_retry_ai_response
+# Import emoji formatter
+from src.utils.emoji_formatter import format_emojis_for_discord
 
 # Load configuration from config.toml
 try:
@@ -292,6 +294,12 @@ async def on_message(message):
     # Respond only when mentioned or in DM, but always learn from all messages
     is_mentioned = bot.user.mentioned_in(message)
     is_dm = isinstance(message.channel, discord.DMChannel)
+    
+    # Ignore @everyone and @here mentions
+    if is_mentioned and message.mention_everyone:
+        logger.debug("Ignoring @everyone or @here mention")
+        is_mentioned = False
+    
     logger.debug(f"Message is mentioned: {is_mentioned}, is DM: {is_dm}")
     
     if is_mentioned or is_dm:
@@ -475,13 +483,16 @@ async def on_message(message):
             response = litellm.completion(model=config['ai']['default_model'], messages=[{"role": "user", "content": full_prompt}])
             ai_reply = response['choices'][0]['message']['content']
             
+            # Format emojis to ensure they're in the proper Discord-friendly format
+            formatted_reply = format_emojis_for_discord(ai_reply, message.guild)
+            
             # Validate and retry if needed for emoji tags
-            ai_reply, was_retried = await validate_and_retry_ai_response(
-                ai_reply, message.guild, config, full_prompt
+            formatted_reply, was_retried = await validate_and_retry_ai_response(
+                formatted_reply, message.guild, config, full_prompt
             )
             
             # Post-process to convert emoji tags to actual Discord emojis
-            processed_reply = replace_emoji_tags(ai_reply, message.guild)
+            processed_reply = replace_emoji_tags(formatted_reply, message.guild)
             
             # Send response
             await message.channel.send(processed_reply)

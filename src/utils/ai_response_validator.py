@@ -5,6 +5,7 @@ import litellm
 import json
 from typing import List, Dict, Tuple, Optional
 from src.utils.emoji_parser import find_invalid_emoji_tags
+from src.utils.emoji_formatter import validate_emoji_formatting
 
 logger = logging.getLogger(__name__)
 
@@ -33,27 +34,37 @@ async def validate_and_retry_ai_response(
     # Check for invalid emoji tags
     invalid_emojis = find_invalid_emoji_tags(response_text, guild)
     
-    if not invalid_emojis:
-        logger.debug("No invalid emoji tags found in response")
+    # Check for improper emoji formatting
+    improper_formatting = not validate_emoji_formatting(response_text)
+    
+    if not invalid_emojis and not improper_formatting:
+        logger.debug("No invalid emoji tags or improper formatting found in response")
         return response_text, False
     
-    logger.debug(f"Found invalid emoji tags: {invalid_emojis}")
+    logger.debug(f"Found issues - invalid emoji tags: {invalid_emojis}, improper formatting: {improper_formatting}")
     
-    # If we have invalid emojis, we need to retry
+    # If we have issues, we need to retry
     current_response = response_text
     retry_count = 0
     
-    while invalid_emojis and retry_count < max_retries:
+    while (invalid_emojis or improper_formatting) and retry_count < max_retries:
         retry_count += 1
         logger.debug(f"Retry attempt {retry_count}/{max_retries}")
         
-        # Create a retry prompt that specifically addresses the invalid emojis
+        # Create a retry prompt that specifically addresses the issues
+        issues = []
+        if invalid_emojis:
+            issues.append(f"invalid emoji references: {', '.join(invalid_emojis)}")
+        if improper_formatting:
+            issues.append("improper emoji formatting")
+            
         retry_prompt = f"""
 {original_prompt}
 
-Your previous response contained invalid emoji references: {', '.join(invalid_emojis)}
+Your previous response contained {', '.join(issues)}.
 Please rewrite your response using only valid emojis from the server or standard Unicode emojis.
-Remember to enclose emoji names in curly braces like {{emoji_name}} for custom emojis or use Unicode emojis directly.
+Remember to enclose custom emoji names in curly braces like {{emoji_name}} for custom emojis or use Unicode emojis directly.
+Do NOT use the Discord emoji format like <:emoji_name:123456789>.
 
 Previous response: {current_response}
 """.strip()
@@ -85,16 +96,17 @@ Previous response: {current_response}
             # Update current response
             current_response = new_response
             
-            # Check for invalid emojis again
+            # Check for issues again
             invalid_emojis = find_invalid_emoji_tags(current_response, guild)
-            logger.debug(f"Invalid emojis after retry: {invalid_emojis}")
+            improper_formatting = not validate_emoji_formatting(current_response)
+            logger.debug(f"Issues after retry - invalid emojis: {invalid_emojis}, improper formatting: {improper_formatting}")
             
         except Exception as e:
             logger.error(f"Error during retry attempt {retry_count}: {e}")
             # If there's an error in retry, we'll return the original response
             break
     
-    if invalid_emojis:
-        logger.warning(f"Still have invalid emojis after {retry_count} retries: {invalid_emojis}")
+    if invalid_emojis or improper_formatting:
+        logger.warning(f"Still have issues after {retry_count} retries - invalid emojis: {invalid_emojis}, improper formatting: {improper_formatting}")
     
     return current_response, True

@@ -344,8 +344,8 @@ async def test_create_enhanced_emoji_prompt_with_descriptions(mock_create_prompt
         
         # Verify the result contains the descriptions
         assert "Available server emojis with descriptions:" in result
-        assert "<:smile:12345>: A smiling face emoji" in result
-        assert "<:heart:67890>: A red heart emoji" in result
+        assert "{smile}: A smiling face emoji" in result
+        assert "{heart}: A red heart emoji" in result
         assert "Please prioritize using these server emojis liberally and frequently to enhance communication and add personality to your responses" in result
         
         # Verify the fallback wasn't called
