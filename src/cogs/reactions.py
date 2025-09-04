@@ -312,7 +312,7 @@ Respond ONLY with the JSON format specified above. Do not include any other text
                     model=self.bot.config['ai']['default_model'],  # Use the same model as the bot
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.7,
-                    max_tokens=250  # Increased token limit to prevent MAX_TOKENS finish reason
+                    max_tokens=500  # Increased token limit to prevent MAX_TOKENS finish reason
                 )
                 logger.debug("AI response received")
                 
@@ -370,7 +370,7 @@ Respond ONLY with the JSON format specified above. Do not include any other text
                         logger.warning(f"Failed to parse AI response as JSON: {e}. Response was: {content_response}")
                         # Try to extract information from the response even if it's not valid JSON
                         # Check if the response contains words indicating a reaction should happen
-                        response_lower = content_lower.strip().lower()
+                        response_lower = content_response.lower()  # Don't strip here to preserve content
                         should_react = (
                             "true" in response_lower or 
                             "yes" in response_lower or 
@@ -384,69 +384,31 @@ Respond ONLY with the JSON format specified above. Do not include any other text
                 interest_level = result.get("interest_level", "low")
                 logger.debug(f"AI decision: should_react={should_react}, interest_level={interest_level}")
                 
-                # Additional logic based on interest level and message frequency
-                if interest_level == "very_high":
-                    # Always react to very interesting content
-                    logger.debug("Interest level is very_high, always reacting")
-                    return True
-                elif interest_level == "high":
-                    # React to high interest content more frequently
-                    # But still consider the message count to avoid spam
-                    if messages_since_last >= 3:  # At least 3 messages since last reaction
-                        logger.debug("Interest level is high, messages since last >= 3, reacting based on AI decision")
-                        return should_react
-                    elif messages_since_last >= 2:  # At least 2 messages since last reaction
-                        # 70% chance to react to high interest content
-                        decision = should_react and random.random() < 0.7
-                        logger.debug(f"Interest level is high, messages since last >= 2, 70% chance decision: {decision}")
-                        return decision
+                # Let the LLM decision be the final decision, with minimal frequency management
+                # Only prevent reactions if we've had too many in a very short time
+                if should_react:
+                    # Very minimal frequency management to prevent extreme spam
+                    if messages_since_last >= 1:  # At least 1 message since last reaction
+                        logger.debug("AI said to react and enough messages since last reaction, reacting")
+                        return True
                     else:
-                        # If should_react is True and interest is high, still give it a chance
-                        decision = should_react and random.random() < 0.3
-                        logger.debug(f"Interest level is high, messages since last < 2, 30% chance decision: {decision}")
+                        # Even if it's been a very short time, still mostly respect the AI's decision
+                        # Only prevent if it would be truly excessive (like multiple reactions per second)
+                        decision = random.random() < 0.9  # 90% chance to respect AI decision even if it's been a short time
+                        logger.debug(f"AI said to react, <1 message since last reaction, 90% chance decision: {decision}")
                         return decision
-                elif interest_level == "medium":
-                    # React to medium interest content less frequently
-                    if messages_since_last >= 5:  # At least 5 messages since last reaction
-                        logger.debug("Interest level is medium, messages since last >= 5, reacting based on AI decision")
-                        return should_react
-                    elif messages_since_last >= 3:  # At least 3 messages since last reaction
-                        # 40% chance to react to medium interest content
-                        decision = should_react and random.random() < 0.4
-                        logger.debug(f"Interest level is medium, messages since last >= 3, 40% chance decision: {decision}")
-                        return decision
-                    else:
-                        # If should_react is True and interest is medium, still give it a small chance
-                        decision = should_react and random.random() < 0.1
-                        logger.debug(f"Interest level is medium, messages since last < 3, 10% chance decision: {decision}")
-                        return decision
-                elif interest_level == "low":
-                    # Only react to low interest content very infrequently
-                    if messages_since_last >= 10:  # At least 10 messages since last reaction
-                        # 20% chance to react to low interest content
-                        decision = should_react and random.random() < 0.2
-                        logger.debug(f"Interest level is low, messages since last >= 10, 20% chance decision: {decision}")
-                        return decision
-                    else:
-                        # Very low chance for low interest content
-                        decision = should_react and random.random() < 0.05
-                        logger.debug(f"Interest level is low, messages since last < 10, 5% chance decision: {decision}")
-                        return decision
-                        
-                # Default: If AI said should_react but none of the above conditions matched, 
-                # still give it a small chance to react
-                decision = should_react and random.random() < 0.1
-                logger.debug(f"Default reaction decision: {decision}")
-                return decision
-                
+                else:
+                    logger.debug("AI said not to react")
+                    return False
+                    
             except Exception as e:
                 logger.error(f"Error in AI completion: {e}")
-                # Conservative approach: only react if it's been a while
-                if messages_since_last >= 8:
-                    decision = random.random() < 0.1  # 10% chance if it's been a while
-                    logger.debug(f"AI error, conservative reaction decision (>= 8 messages): {decision}")
+                # Only react if it's been a very long time (fallback behavior)
+                if messages_since_last >= 10:
+                    decision = random.random() < 0.1  # 10% chance if it's been a very long time
+                    logger.debug(f"AI error, conservative reaction decision (>= 10 messages): {decision}")
                     return decision
-                logger.debug("AI error, conservative reaction decision (< 8 messages): False")
+                logger.debug("AI error, conservative reaction decision (< 10 messages): False")
                 return False
                 
         except Exception as e:
@@ -489,7 +451,7 @@ Respond ONLY with the JSON format specified above. Do not include any other text
                 # Look for common patterns like "with a [emoji] emoji" or "with [emoji]"
                 import re
                 
-                # Pattern 1: "with a dog emoji"
+                # Pattern 1: "with a dog emoji" or "with dog emoji"
                 match = re.search(r"with a? ([^ ]+) emoji", content_lower)
                 if match:
                     emoji_request = match.group(1)
@@ -499,23 +461,6 @@ Respond ONLY with the JSON format specified above. Do not include any other text
                         if emoji_request in emoji.name.lower():
                             logger.debug(f"Found matching custom emoji: {emoji}")
                             return [str(emoji)]
-                    # If no custom emoji found, try common unicode emojis
-                    emoji_map = {
-                        "dog": "🐶",
-                        "cat": "🐱",
-                        "heart": "❤️",
-                        "fire": "🔥",
-                        "laugh": "😂",
-                        "thumbs": "👍",
-                        "smile": "😊",
-                        "sad": "😢",
-                        "angry": "😠",
-                        "surprise": "😲"
-                    }
-                    for key, unicode_emoji in emoji_map.items():
-                        if key in emoji_request:
-                            logger.debug(f"Found matching unicode emoji: {unicode_emoji}")
-                            return [unicode_emoji]
                 
                 # Pattern 2: "with [emoji]"
                 match = re.search(r"with ([^ ]+)", content_lower)
@@ -532,7 +477,6 @@ Respond ONLY with the JSON format specified above. Do not include any other text
                         logger.debug(f"Found emoji character: {emoji_request}")
                         return [emoji_request]
                     # Check if it's in the Discord custom emoji format <:name:id> and extract the name
-                    import re
                     discord_emoji_match = re.search(r"<:([^:]+):\d+>", emoji_request)
                     if discord_emoji_match:
                         emoji_name = discord_emoji_match.group(1)
@@ -599,7 +543,7 @@ IMPORTANT: For custom emoji names, use ONLY the name part (e.g., "jakeylook"), n
                     model=self.bot.config['ai']['default_model'],  # Use the same model as the bot
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.7,
-                    max_tokens=150
+                    max_tokens=300
                 )
                 logger.debug("AI response received")
                 
