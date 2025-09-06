@@ -2,11 +2,11 @@ import discord
 from discord.ext import commands
 import os
 import logging
-import tomllib # For reading TOML config
-from dotenv import load_dotenv # For loading .env variables
-import litellm # For AI interactions
-import asyncio # For background tasks
-import json # For JSON handling
+import tomllib  # For reading TOML config
+from dotenv import load_dotenv  # For loading .env variables
+import litellm  # For AI interactions
+import asyncio  # For background tasks
+import json  # For JSON handling
 import inspect  # For safe async iteration checks in tests
 # Import database manager
 from src.database.manager import DatabaseManager
@@ -22,20 +22,28 @@ from src.utils.ai_response_validator import validate_and_retry_ai_response
 # Import emoji formatter
 from src.utils.emoji_formatter import format_emojis_for_discord
 
+# Detect test mode
+TEST_ENV = os.getenv("TEST_ENV") not in (None, "", "0", "false", "False")
+
 # Load configuration from config.toml
 try:
     with open("config.toml", "rb") as f:
         config = tomllib.load(f)
 except FileNotFoundError:
-    # During tests or local dev, avoid hard exit on import
-    # Provide a minimal default config so module import succeeds
-    config = {
-        "discord": {},
-        "ai": {"default_model": "gemini/gemini-2.5-flash"},
-        "database": {"path": "data/ai_adam.db"},
-        "logging": {"level": "INFO"},
-    }
-    print("config.toml not found. Using default in-memory config for testing.")
+    if TEST_ENV:
+        # In tests, avoid hard exit on import; use a minimal default config
+        config = {
+            "discord": {},
+            "ai": {"default_model": "gemini/gemini-2.5-flash"},
+            "database": {"path": "data/ai_adam.db"},
+            "logging": {"level": "INFO"},
+        }
+        print("config.toml not found. Using default config (TEST_ENV).")
+    else:
+        print(
+            "config.toml not found. Please create it based on config.example.toml",
+        )
+        raise SystemExit(1)
 
 # --- Logging ---
 logging.basicConfig(
@@ -67,10 +75,16 @@ logger = logging.getLogger(__name__)
 
 # --- Bot Setup ---
 # Get token from .env or config (prefer .env for secrets)
-DISCORD_TOKEN = os.getenv('DISCORD_TOKEN') or config['discord'].get('token') or "test-token"
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") or config["discord"].get("token")
 if not DISCORD_TOKEN:
-    # As a final fallback, ensure a non-empty token for import-time tests
-    DISCORD_TOKEN = "test-token"
+    if TEST_ENV:
+        # Provide a fake token for tests
+        DISCORD_TOKEN = "test-token"
+    else:
+        logger.error(
+            "Discord token not found! Please set DISCORD_TOKEN in .env or config.toml",
+        )
+        raise SystemExit(1)
 
 # Set LiteLLM API keys from environment variables
 # LiteLLM will automatically pick these up

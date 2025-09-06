@@ -17,3 +17,5 @@ def _ensure_repo_root_on_path() -> None:
 
 _ensure_repo_root_on_path()
 
+# Ensure test-mode behavior is enabled where code gates on TEST_ENV
+os.environ.setdefault("TEST_ENV", "1")
