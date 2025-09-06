@@ -66,12 +66,6 @@ db_manager = DatabaseManager(config['database']['path'])
 logger.debug("Initializing emoji manager")
 emoji_manager = EmojiManager(db_manager)
 
-# --- Logging ---
-logging.basicConfig(
-    level=getattr(logging, config['logging']['level'], logging.INFO),
-    format='%(asctime)s:%(levelname)s:%(name)s: %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # --- Bot Setup ---
 # Get token from .env or config (prefer .env for secrets)

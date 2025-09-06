@@ -4,6 +4,7 @@ import json
 import logging
 
 import discord
+from discord.ext import commands
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ def setup(bot):
     logger.info("Setting up memory commands")
     
     @bot.slash_command(name="memory", description="Retrieve or clear memory")
+    @commands.cooldown(3, 60, commands.BucketType.user)
     async def memory(ctx: discord.ApplicationContext,
                      target: discord.Option(str, "Target memory type", 
                                           choices=["user", "server"], 
@@ -158,6 +160,15 @@ def setup(bot):
             logger.error(f"Error retrieving memory: {e}", exc_info=True)
             await ctx.respond("Error retrieving memory.", ephemeral=True)
     
+    # Add error handler for cooldown
+    @memory.error
+    async def memory_error(ctx: discord.ApplicationContext, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            retry_after = int(error.retry_after)
+            await ctx.respond(f"Slow down! You can use this command again in {retry_after} seconds.", ephemeral=True)
+        else:
+            logger.error(f"Error in memory command: {error}", exc_info=True)
+    
     logger.info("Memory commands setup completed")
 
 
@@ -168,42 +179,41 @@ class ConfirmClearView(discord.ui.View):
         self.target_entity = target_entity
         self.db_manager = db_manager
         self.target = target  # "user" or "server"
-        logger.debug(f"ConfirmClearView initialized: target={target}, command_user={command_user}, target_entity={target_entity}")
+        self.logger = logging.getLogger(__name__)
+        self.logger.debug(f"ConfirmClearView initialized: target={target}, command_user={command_user}, target_entity={target_entity}")
     
     @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger)
     async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
-        # Use the global logger variable
-        global logger
-        logger.debug(f"Confirm button pressed by user {interaction.user}")
+        self.logger.debug(f"Confirm button pressed by user {interaction.user}")
         # Check if the interaction is from the user who initiated the command
         if interaction.user != self.command_user:
-            logger.warning(f"User {interaction.user} attempted to confirm action they didn't initiate")
+            self.logger.warning(f"User {interaction.user} attempted to confirm action they didn't initiate")
             await interaction.response.send_message("You cannot confirm this action.", ephemeral=True)
             return
             
         try:
             if self.target == "user":
-                logger.debug(f"Clearing user memory for user ID: {self.target_entity.id}")
+                self.logger.debug(f"Clearing user memory for user ID: {self.target_entity.id}")
                 # Clear the user's memory
                 user_id = str(self.target_entity.id)
                 await self.db_manager.clear_user_memory(user_id)
                 msg = f"Successfully cleared memory for {self.target_entity.display_name}."
-                logger.info(msg)
+                self.logger.info(msg)
                 await interaction.response.send_message(msg, ephemeral=True)
             else:  # server
-                logger.debug(f"Clearing server memory for guild ID: {self.target_entity.id}")
+                self.logger.debug(f"Clearing server memory for guild ID: {self.target_entity.id}")
                 # Clear the server's memory
                 guild_id = str(self.target_entity.id)
                 await self.db_manager.clear_server_memory(guild_id)
                 msg = f"Successfully cleared memory for {self.target_entity.name}."
-                logger.info(msg)
+                self.logger.info(msg)
                 await interaction.response.send_message(msg, ephemeral=True)
         except Exception as e:
-            logger.error(f"Error clearing memory: {e}", exc_info=True)
+            self.logger.error(f"Error clearing memory: {e}", exc_info=True)
             await interaction.response.send_message("Error clearing memory.", ephemeral=True)
         
         # Disable the buttons after use
-        logger.debug("Disabling buttons and stopping view")
+        self.logger.debug("Disabling buttons and stopping view")
         self.stop()
         for child in self.children:
             child.disabled = True
@@ -211,21 +221,19 @@ class ConfirmClearView(discord.ui.View):
     
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
-        # Use the global logger variable
-        global logger
-        logger.debug(f"Cancel button pressed by user {interaction.user}")
+        self.logger.debug(f"Cancel button pressed by user {interaction.user}")
         # Check if the interaction is from the user who initiated the command
         if interaction.user != self.command_user:
-            logger.warning(f"User {interaction.user} attempted to cancel action they didn't initiate")
+            self.logger.warning(f"User {interaction.user} attempted to cancel action they didn't initiate")
             await interaction.response.send_message("You cannot cancel this action.", ephemeral=True)
             return
             
         msg = "Memory clear operation cancelled."
-        logger.info(msg)
+        self.logger.info(msg)
         await interaction.response.send_message(msg, ephemeral=True)
         
         # Disable the buttons after use
-        logger.debug("Disabling buttons and stopping view")
+        self.logger.debug("Disabling buttons and stopping view")
         self.stop()
         for child in self.children:
             child.disabled = True

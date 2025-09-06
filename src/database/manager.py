@@ -7,6 +7,7 @@ import json
 from typing import List, Dict
 import litellm
 import datetime
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -19,52 +20,68 @@ class DatabaseManager:
     async def init_db(self):
         """Initialize the database and create tables if they don't exist."""
         logger.debug(f"Initializing database at {self.db_path}")
-        async with aiosqlite.connect(self.db_path) as db:
-            logger.debug("Creating user_memory table")
-            # Create user_memory table
-            await db.execute('''
-                CREATE TABLE IF NOT EXISTS user_memory (
-                    user_id TEXT PRIMARY KEY,
-                    known_facts TEXT, -- JSON string to store known facts
-                    interaction_history TEXT, -- JSON string to store recent interactions
-                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            logger.debug("Creating emoji_descriptions table")
-            # Create emoji_descriptions table for caching emoji analysis results
-            await db.execute('''
-                CREATE TABLE IF NOT EXISTS emoji_descriptions (
-                    emoji_key TEXT PRIMARY KEY, -- Format: guild_id:emoji_name
-                    description TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            logger.debug("Creating server_personalities table")
-            # Create server_personalities table for storing server personality settings
-            await db.execute('''
-                CREATE TABLE IF NOT EXISTS server_personalities (
-                    guild_id TEXT PRIMARY KEY,
-                    personality_name TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            logger.debug("Creating server_memory table")
-            # Create server_memory table for storing server-wide facts
-            await db.execute('''
-                CREATE TABLE IF NOT EXISTS server_memory (
-                    guild_id TEXT PRIMARY KEY,
-                    known_facts TEXT, -- JSON string to store known facts
-                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            await db.commit()
-            logger.info("Database initialized.")
+        
+        max_retries = 3
+        retry_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                async with aiosqlite.connect(self.db_path) as db:
+                    logger.debug("Creating user_memory table")
+                    # Create user_memory table
+                    await db.execute('''
+                        CREATE TABLE IF NOT EXISTS user_memory (
+                            user_id TEXT PRIMARY KEY,
+                            known_facts TEXT, -- JSON string to store known facts
+                            interaction_history TEXT, -- JSON string to store recent interactions
+                            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    
+                    logger.debug("Creating emoji_descriptions table")
+                    # Create emoji_descriptions table for caching emoji analysis results
+                    await db.execute('''
+                        CREATE TABLE IF NOT EXISTS emoji_descriptions (
+                            emoji_key TEXT PRIMARY KEY, -- Format: guild_id:emoji_name
+                            description TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    
+                    logger.debug("Creating server_personalities table")
+                    # Create server_personalities table for storing server personality settings
+                    await db.execute('''
+                        CREATE TABLE IF NOT EXISTS server_personalities (
+                            guild_id TEXT PRIMARY KEY,
+                            personality_name TEXT NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    
+                    logger.debug("Creating server_memory table")
+                    # Create server_memory table for storing server-wide facts
+                    await db.execute('''
+                        CREATE TABLE IF NOT EXISTS server_memory (
+                            guild_id TEXT PRIMARY KEY,
+                            known_facts TEXT, -- JSON string to store known facts
+                            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    
+                    await db.commit()
+                    logger.info("Database initialized successfully.")
+                    return  # Success, exit the method
+            except Exception as e:
+                logger.error(f"Database initialization attempt {attempt + 1} failed: {str(e)}")
+                if attempt < max_retries - 1:  # If not the last attempt
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logger.error("Database initialization failed after all retries. Bot will continue with limited functionality.")
+                    # The bot will continue running with limited functionality as requested
 
     async def get_user_memory(self, user_id: str):
         """Retrieve memory data for a specific user."""
