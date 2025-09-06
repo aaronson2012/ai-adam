@@ -21,6 +21,20 @@ def format_emojis_for_discord(text: str, guild: discord.Guild) -> str:
         str: Text with properly formatted emojis
     """
     logger.debug(f"Formatting emojis in text: {text[:100]}...")
+
+    # Safely access guild emojis; in tests guild may be a Mock or None
+    def _get_guild_emojis(g) -> list:
+        try:
+            if g is None:
+                return []
+            emojis = getattr(g, "emojis", [])
+            # Ensure it's iterable
+            return list(emojis) if emojis is not None else []
+        except TypeError:
+            # If emojis is a Mock or non-iterable, treat as empty
+            return []
+
+    guild_emojis = _get_guild_emojis(guild)
     
     # First, let's identify all potential emoji patterns in the text
     # This includes:
@@ -35,7 +49,7 @@ def format_emojis_for_discord(text: str, guild: discord.Guild) -> str:
         emoji_name = match.group(1)
         logger.debug(f"Found Discord emoji format, converting to curly brace format: {emoji_name}")
         # Check if this is a valid custom emoji in the guild
-        emoji_obj = discord.utils.get(guild.emojis, name=emoji_name)
+        emoji_obj = discord.utils.get(guild_emojis, name=emoji_name)
         if emoji_obj:
             # Valid custom emoji, convert to curly brace format
             return f"{{{emoji_name}}}"
@@ -67,7 +81,7 @@ def format_emojis_for_discord(text: str, guild: discord.Guild) -> str:
             return match.group(0)
         
         # Check if this is a valid custom emoji in the guild
-        emoji_obj = discord.utils.get(guild.emojis, name=potential_name)
+        emoji_obj = discord.utils.get(guild_emojis, name=potential_name)
         if emoji_obj:
             logger.debug(f"Found valid custom emoji, converting to curly brace format: {potential_name}")
             # Valid custom emoji, ensure it's in curly brace format
